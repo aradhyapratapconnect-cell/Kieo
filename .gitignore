@@ -1,0 +1,30 @@
+# Kieo — .gitignore (KIEO-001)
+
+node_modules/
+out/
+dist/
+build/
+*.log
+
+# Vite / electron-vite
+.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local SQLite data (user data lives in per-OS app-data path at runtime, never in repo)
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-journal
+
+# Secrets — API keys are stored via safeStorage at runtime, never .env (per Security doc)
+.env*
+!.env.example
+
+# pnpm
+.pnpm-store/

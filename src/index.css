@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap');
+@import 'tailwindcss';
+
+/* Kieo design tokens — Frontend Specification v4.0 (cyber-executive). Single source of truth. */
+:root {
+  --color-bg-base: #090d14;
+  --color-surface: #0f172a;
+  --color-surface-elevated: #1e293b;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+  --color-primary: #06b6d4;
+  --color-primary-bright: #4cd7f6;
+  --color-safe: #10b981;
+  --color-caution: #f59e0b;
+  --color-danger: #ef4444;
+  --color-neural-start: #06b6d4;
+  --color-neural-end: #8b5cf6;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #475569;
+
+  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+@theme {
+  --color-bg-base: #090d14;
+  --color-surface: #0f172a;
+  --color-surface-elevated: #1e293b;
+  --color-primary: #06b6d4;
+  --color-primary-bright: #4cd7f6;
+  --color-safe: #10b981;
+  --color-caution: #f59e0b;
+  --color-danger: #ef4444;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #475569;
+
+  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 24px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Focus state: electric cyan glow, never the default blue outline (spec 1.4). */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
