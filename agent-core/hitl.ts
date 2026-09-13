@@ -7,10 +7,13 @@
 // Flow per dangerous tool call:
 //   1. Look up the definition (unknown tools are denied immediately — never
 //      executed, never shown an approval card).
-//   2. Read-only tools skip approval entirely and execute at once.
-//   3. Dangerous tools consult `resolvePolicy` (default: always ask; KIEO-014
-//      replaces it with the permissions-table version) and, when asking,
-//      pause for exactly one resolved decision: approved, denied, or timeout.
+//   2. Policy check first: explicit never_allow denies ANY tool class without
+//      a card (the agent cannot bypass the permission table). Read-only tools
+//      otherwise skip approval entirely and execute at once.
+//   3. Dangerous tools consult `resolvePolicy` (default: always ask;
+//      production injects the permissions-table version in KIEO-014) and,
+//      when asking, pause for exactly one resolved decision: approved,
+//      denied, or timeout. A post-approval recheck closes the revoke race.
 //   4. Approved -> execute, return the result. Denied/timeout -> return a safe,
 //      LLM-summarizable error result WITHOUT executing anything.
 //   5. Every outcome is written to `tool_execution_log` (needs the assistant
@@ -51,10 +54,10 @@ export interface HitlPolicyContext {
 }
 
 /**
- * Decides whether a dangerous tool call needs the approval UI. Default asks
- * every time; KIEO-014 injects the permissions-table version
- * (never_allow -> deny, always_allow -> allow). Read-only tools never reach
- * this — they skip approval unconditionally (ticket AC).
+ * Decides whether a tool call needs the approval UI. Default asks every
+ * time; production injects the permissions-table version (KIEO-014:
+ * never_allow -> deny, always_allow -> allow). Read-only tools still skip the
+ * *card*, but an explicit deny from this resolver blocks them too.
  */
 export type ResolveHitlPolicy = (ctx: HitlPolicyContext) => HitlPolicy
 
@@ -126,6 +129,31 @@ export async function executeToolWithHITL(
     return { status: 'denied', result, executed: false }
   }
 
+  const policy = resolvePolicy({
+    toolName: def.name,
+    classification: def.classification,
+    permissionActionType: def.permissionActionType
+  })
+
+  // Explicit never_allow denies immediately — no card, no execution, no LLM
+  // round-trip needed. Applies to read_only tools as well: skipping the
+  // approval *card* is not consent to ignore an explicit Never Allow.
+  if (policy === 'deny') {
+    const result = {
+      status: 'denied' as const,
+      reason: `Policy forbids "${def.name}" (permission level never_allow).`
+    }
+    logToolExecution(db, {
+      messageId: input.messageId,
+      toolName: input.toolName,
+      args: input.input,
+      classification: def.classification,
+      approvalStatus: 'denied',
+      result
+    })
+    return { status: 'denied', result, executed: false }
+  }
+
   // Read-only tools skip the approval flow entirely (ticket AC) and are
   // logged as auto_approved: executed under standing policy, no prompt.
   // KIEO-014's always_allow shares this status for the same reason.
@@ -142,26 +170,6 @@ export async function executeToolWithHITL(
     return { status: 'auto_approved', result, executed: true }
   }
 
-  const policy = resolvePolicy({
-    toolName: def.name,
-    classification: def.classification,
-    permissionActionType: def.permissionActionType
-  })
-  if (policy === 'deny') {
-    const result = {
-      status: 'denied' as const,
-      reason: `Policy forbids "${def.name}" (permission level never_allow).`
-    }
-    logToolExecution(db, {
-      messageId: input.messageId,
-      toolName: input.toolName,
-      args: input.input,
-      classification: def.classification,
-      approvalStatus: 'denied',
-      result
-    })
-    return { status: 'denied', result, executed: false }
-  }
   if (policy === 'allow') {
     const result = await runImplementation(input.toolName, input.input, deps.executeTool)
     logToolExecution(db, {
@@ -184,6 +192,30 @@ export async function executeToolWithHITL(
   })
 
   if (decision === 'approved') {
+    // Revoked between approval and execution? Treat as denied (defense in
+    // depth — the active path is reevaluatePendingApprovals, which denies the
+    // pending card immediately; this closes the residual race).
+    if (
+      resolvePolicy({
+        toolName: def.name,
+        classification: def.classification,
+        permissionActionType: def.permissionActionType
+      }) === 'deny'
+    ) {
+      const result = {
+        status: 'denied' as const,
+        reason: `Permission for "${def.name}" was revoked (never_allow) after approval, before execution.`
+      }
+      logToolExecution(db, {
+        messageId: input.messageId,
+        toolName: input.toolName,
+        args: input.input,
+        classification: def.classification,
+        approvalStatus: 'denied',
+        result
+      })
+      return { status: 'denied', result, executed: false }
+    }
     const result = await runImplementation(input.toolName, input.input, deps.executeTool)
     logToolExecution(db, {
       messageId: input.messageId,

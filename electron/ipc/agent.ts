@@ -16,6 +16,7 @@ import { getKeyStore } from '../secure/keyStore'
 import { toolRegistry, toAiSdkTools } from '../../agent-core/tools/registry'
 import { toolDispatcher } from '../../agent-core/tools/dispatch'
 import { createHitlExecutor } from '../../agent-core/hitl'
+import { resolvePermissionPolicy } from '../../agent-core/permissions'
 import { runAgentLoop } from '../../agent-core/loop'
 import { broadcastAgentState } from './agentState'
 import { requestApprovalViaRenderer, readHitlTimeoutMs } from './hitl'
@@ -54,6 +55,9 @@ async function handleAgentCommand(text: string): Promise<void> {
     messageId: assistantMsg.id,
     requestApproval: requestApprovalViaRenderer,
     executeTool: (toolName, input) => toolDispatcher.execute(toolName, input),
+    // KIEO-014: read fresh from the permissions table on every call — a
+    // Settings change applies to the very next matching tool call.
+    resolvePolicy: (ctx) => resolvePermissionPolicy(db, ctx),
     timeoutMs: readHitlTimeoutMs()
   })
 

@@ -19,6 +19,8 @@
 import { ipcMain } from 'electron'
 import type { HitlRequest, HitlResponse } from '../../shared/types'
 import type { HitlDecision, RequestApproval } from '../../agent-core/hitl'
+import { findRevokedPendingApprovals } from '../../agent-core/permissions'
+import type { DatabaseHandle } from '../../db/database'
 import { getAgentWindow } from './agentState'
 
 export const DEFAULT_HITL_TIMEOUT_MS = 60_000
@@ -33,6 +35,7 @@ export function readHitlTimeoutMs(): number {
 
 interface PendingApproval {
   toolName: string
+  permissionActionType: string
   resolve: (decision: HitlDecision) => void
   timer: NodeJS.Timeout
 }
@@ -42,6 +45,38 @@ const pendingApprovals = new Map<string, PendingApproval>()
 /** Number of approvals currently awaiting a decision (diagnostics/tests). */
 export function pendingApprovalCount(): number {
   return pendingApprovals.size
+}
+
+/** Snapshot of pending approvals for policy reevaluation (KIEO-014). */
+export function getPendingApprovals(): Array<{
+  toolCallId: string
+  toolName: string
+  permissionActionType: string
+}> {
+  return [...pendingApprovals.entries()].map(([toolCallId, p]) => ({
+    toolCallId,
+    toolName: p.toolName,
+    permissionActionType: p.permissionActionType
+  }))
+}
+
+/**
+ * Immediately deny every pending approval whose action type is now
+ * never_allow (Security edge: revocation mid-AWAITING_APPROVAL). Returns the
+ * denied ids. Call after every permission write — KIEO-053 wires the Settings
+ * write path to this; the approval-time recheck in executeToolWithHITL covers
+ * the residual race regardless.
+ */
+export function reevaluatePendingApprovals(db: DatabaseHandle): string[] {
+  if (pendingApprovals.size === 0) return []
+  const revoked = findRevokedPendingApprovals(db, getPendingApprovals())
+  for (const toolCallId of revoked) {
+    console.warn(
+      `[kieo] permission revoked while approval "${toolCallId}" was pending — treating as denied.`
+    )
+    settle(toolCallId, 'denied')
+  }
+  return revoked
 }
 
 /**
@@ -95,6 +130,7 @@ export const requestApprovalViaRenderer: RequestApproval = (req) => {
     }, timeoutMs)
     pendingApprovals.set(req.toolCallId, {
       toolName: req.toolName,
+      permissionActionType: req.permissionActionType,
       resolve,
       timer
     })
