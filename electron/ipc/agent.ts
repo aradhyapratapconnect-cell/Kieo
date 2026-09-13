@@ -15,11 +15,17 @@ import { resolveModel } from '../../agent-core/llm/provider'
 import { getKeyStore } from '../secure/keyStore'
 import { toolRegistry, toAiSdkTools } from '../../agent-core/tools/registry'
 import { toolDispatcher } from '../../agent-core/tools/dispatch'
+import { registerFileTools } from '../../agent-core/tools/files'
 import { createHitlExecutor } from '../../agent-core/hitl'
 import { resolvePermissionPolicy } from '../../agent-core/permissions'
 import { runAgentLoop } from '../../agent-core/loop'
 import { broadcastAgentState } from './agentState'
 import { requestApprovalViaRenderer, readHitlTimeoutMs } from './hitl'
+
+// Epic C registrations: each ticket's module registers its implementations
+// into the process-wide dispatcher (workspace root resolves per call from
+// settings, so no configuration step is needed here).
+registerFileTools(toolDispatcher)
 
 async function handleAgentCommand(text: string): Promise<void> {
   if (text.trim().length === 0) return
