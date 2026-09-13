@@ -86,6 +86,27 @@ export function isWakeListening(): boolean {
   return session !== null
 }
 
+/**
+ * KIEO-033: pause frame processing while the approval channel holds the
+ * verdict turn (avoids double transcription + feedback between the two
+ * listeners). The mic stream stays open — only frames are dropped. On
+ * resume, assemblers are rebuilt so stale pre-roll can't false-trigger.
+ */
+let wakePaused = false
+
+export function setWakePaused(paused: boolean): void {
+  wakePaused = paused
+  const s = session
+  if (!paused && s) {
+    s.spotAsm = makeAssembler(handleSpotEvent)
+    if (s.mode === 'command') {
+      s.mode = 'spotting'
+      s.cmdAsm = null
+      events?.onPhase('spotting')
+    }
+  }
+}
+
 function makeAssembler(onEvent: (e: AssemblerEvent) => void): UtteranceAssembler {
   // ~23 ScriptProcessor callbacks/sec at 48kHz/2048 frames.
   return new UtteranceAssembler(
@@ -171,7 +192,7 @@ function stopSession(): void {
 }
 
 async function handleFrame(s: Session, frame: Float32Array, inputRate: number): Promise<void> {
-  if (session !== s || s.transcribing) return
+  if (session !== s || s.transcribing || wakePaused) return
   const pcm16k = downsampleTo16k(frame, Math.round(inputRate))
   if (pcm16k.length === 0) return
 

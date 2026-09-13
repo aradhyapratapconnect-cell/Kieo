@@ -280,11 +280,22 @@ export interface CreateHitlExecutorDeps extends ExecuteToolWithHitlDeps {
 
 export function createHitlExecutor(deps: CreateHitlExecutorDeps): LoopToolExecutor {
   const seenCalls: Array<{ toolCallId: string; toolName: string; input: unknown }> = []
-  return async (req, _ctx) => {
+  return async (req, ctx) => {
     seenCalls.push({ toolCallId: req.toolCallId, toolName: req.toolName, input: req.input })
     updateMessage(deps.db, deps.messageId, {
       toolCallJson: JSON.stringify(seenCalls)
     })
+    // KIEO-033: surface the approval gate as agent state so the UI (card,
+    // voice approval channel, activity views) can react to it. The inner
+    // requestApproval resolves the card/voice/timeout decision.
+    const reportingApproval: RequestApproval = async (approvalReq) => {
+      ctx.reportState('AWAITING_APPROVAL')
+      try {
+        return await deps.requestApproval(approvalReq)
+      } finally {
+        ctx.reportState('EXECUTING')
+      }
+    }
     const outcome = await executeToolWithHITL(
       {
         toolCallId: req.toolCallId,
@@ -292,7 +303,7 @@ export function createHitlExecutor(deps: CreateHitlExecutorDeps): LoopToolExecut
         input: req.input,
         messageId: deps.messageId
       },
-      deps
+      { ...deps, requestApproval: reportingApproval }
     )
     return outcome.result
   }

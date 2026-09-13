@@ -2,19 +2,39 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './index.css'
-import { MIC_DENIED_MESSAGE } from '../shared/types'
+import { MIC_DENIED_MESSAGE, type AgentState } from '../shared/types'
 import { useAgentStore } from './store/useAgentStore'
 import { createTtsPlayer, playWithWebAudio } from './voice/ttsPlayer'
-import { configureWakeListener, setWakeListening } from './voice/wakeListener'
+import {
+  captureApprovalUtterance,
+  createApprovalChannel
+} from './voice/approvalChannel'
+import { configureWakeListener, setWakeListening, setWakePaused } from './voice/wakeListener'
 
 const rootEl = document.getElementById('root')
 if (!rootEl) throw new Error('Missing #root element')
 
-// KIEO-012: agent loop transitions (main process) surface in the store, so
-// every view (status dot, confirmation card, activity) can react to them.
-window.kieo?.onAgentState((state) => {
-  useAgentStore.getState().setAgentState(state)
+// KIEO-033: voice HITL approvals. Spoken yes/no resolves the pending card
+// through hitl-response; anything else queues as a command and flushes when
+// the loop settles. The channel pauses wake spotting while it holds a card.
+const approvalChannel = createApprovalChannel({
+  capture: () => captureApprovalUtterance(),
+  transcribeAudio: (pcm, sampleRate) => window.kieo.transcribeAudio(pcm, sampleRate),
+  sendResponse: (resp) => window.kieo.sendHitlResponse(resp),
+  submitCommand: (text) => window.kieo.sendCommand(text),
+  onNotice: (text) => {
+    useAgentStore.getState().setWakeNote(text)
+  },
+  setWakePaused
 })
+window.kieo?.onHitlRequest((req) => {
+  approvalChannel.onApprovalRequested(req.toolCallId)
+})
+const forwardAgentState = (state: AgentState): void => {
+  useAgentStore.getState().setAgentState(state)
+  approvalChannel.onAgentState(state)
+}
+window.kieo?.onAgentState(forwardAgentState)
 
 // KIEO-031: synthesized speech playback. SPEAKING shows while audio plays;
 // the store reverts only from SPEAKING so a concurrent loop state is never

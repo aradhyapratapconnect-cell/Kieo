@@ -250,8 +250,7 @@ describe('KIEO-013 executeToolWithHITL', () => {
     expect(executions).toHaveLength(1)
   })
 
-  it('loop adapter returns the result and accumulates tool_call_json on the message', async () => {
-    const db = tempDb()
+  it('loop adapter returns the result and accumulates tool_call_json on the message', async () => {    const db = tempDb()
     const messageId = syntheticMessageId(db)
     const executor = createHitlExecutor({
       ...deps(db, { decisions: ['approved', 'approved'] }),
@@ -275,5 +274,26 @@ describe('KIEO-013 executeToolWithHITL', () => {
       { toolCallId: 'c2', toolName: 'read_file', input: { path: 'b' } }
     ])
     expect(listToolLogs(db)).toHaveLength(2)
+  })
+
+  it('loop adapter reports AWAITING_APPROVAL around the approval gate (KIEO-033)', async () => {
+    const db = tempDb()
+    const messageId = syntheticMessageId(db)
+    const states: string[] = []
+    const executor = createHitlExecutor({
+      ...deps(db, { decisions: ['approved'] }),
+      messageId
+    })
+    await executor(
+      { toolCallId: 'c1', toolName: 'delete_file', input: { path: 'x' } },
+      {
+        reportState: (s) => {
+          states.push(s)
+        }
+      }
+    )
+    // Gate opens with AWAITING_APPROVAL, closes back to EXECUTING — the loop
+    // and renderer observe both, so voice approval knows when to listen.
+    expect(states).toEqual(['AWAITING_APPROVAL', 'EXECUTING'])
   })
 })

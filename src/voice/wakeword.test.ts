@@ -7,6 +7,7 @@ import {
   DEFAULT_WAKE_PHRASE,
   UtteranceAssembler,
   VadGate,
+  classifyApprovalSpeech,
   downsampleTo16k,
   frameEnergy,
   getWakePhrase,
@@ -105,6 +106,28 @@ describe('KIEO-032 VAD gate', () => {
   })
 })
 
+describe('KIEO-033 approval speech classification', () => {
+  it('approves confirm language, denies deny language', () => {
+    for (const t of ['yes', 'Yes please', 'approve', 'go ahead', 'do it', 'sounds good', 'ok', 'oh yes', 'please yes']) {
+      expect(classifyApprovalSpeech(t)).toBe('approved')
+    }
+    for (const t of ['no', 'No thanks', 'deny', 'cancel', "don't", 'do not do that', 'oh no', 'never']) {
+      expect(classifyApprovalSpeech(t)).toBe('denied')
+    }
+  })
+
+  it('queues everything else — never substring-matches', () => {
+    for (const t of ['remind me later', 'what time is it', '', '   ', 'yesterday', 'eyes on that', 'tell me no lies', 'noble effort', 'oklahoma weather', 'do the thing yes']) {
+      expect(classifyApprovalSpeech(t)).toBeNull()
+    }
+  })
+
+  it('ambiguous both-sides utterances stay pending', () => {
+    expect(classifyApprovalSpeech('yes no')).toBeNull()
+    expect(classifyApprovalSpeech('no wait yes')).toBeNull()
+    expect(classifyApprovalSpeech('go ahead oh no')).toBeNull()
+  })
+})
 describe('KIEO-032 utterance assembly', () => {
   function drive(frames: Float32Array[], onEvent: (e: AssemblerEvent) => void): UtteranceAssembler {
     const gate = new VadGate({ framesPerSecond: 20, onsetSeconds: 0.1, hangoverSeconds: 0.2 })

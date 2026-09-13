@@ -68,6 +68,7 @@ export function setWakePhrase(phrase: string, storage: WakeStorage | null = defa
 export function normalizeUtterance(text: string): string {
   return text
     .toLowerCase()
+    .replace(/['’]/g, '')
     .replace(/[^a-z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -97,6 +98,113 @@ export function splitCommandRemainder(transcript: string, phrase: string): strin
     }
   }
   return ''
+}
+
+// ---------------------------------------------------------------------------
+// Approval speech (KIEO-033): confirm/deny vocabulary for pending HITL cards.
+// Token-based (never substring) so "yesterday" can't approve and "dennis"
+// can't deny. Both sides present -> ambiguous -> ignored (stay pending).
+// ---------------------------------------------------------------------------
+
+const CONFIRM_WORDS = new Set([
+  'yes',
+  'yeah',
+  'yep',
+  'yup',
+  'approve',
+  'approved',
+  'confirm',
+  'confirmed',
+  'correct',
+  'right',
+  'ok',
+  'okay',
+  'sure',
+  'proceed',
+  'affirmative'
+])
+
+const CONFIRM_PHRASES = ['go ahead', 'do it', 'sounds good', 'looks good', 'send it', 'run it']
+
+const DENY_WORDS = new Set([
+  'no',
+  'nope',
+  'nah',
+  'deny',
+  'denied',
+  'reject',
+  'rejected',
+  'cancel',
+  'cancelled',
+  'canceled',
+  'stop',
+  "don't",
+  'dont',
+  'never',
+  'wrong',
+  'bad',
+  'negative'
+])
+
+const DENY_PHRASES = ['do not', "don't do", 'dont do', 'not yet', 'hold on']
+
+/** Leading fillers skipped before reading the verdict ("oh yes" => yes). */
+const FILLER_WORDS = new Set(['oh', 'uh', 'um', 'uhm', 'hmm', 'erm', 'well', 'so', 'hey', 'please'])
+
+export type ApprovalVerdict = 'approved' | 'denied' | null
+
+/** True when confirm AND deny language are both present (stay pending). */
+export function isAmbiguousApprovalSpeech(transcript: string): boolean {
+  const norm = normalizeUtterance(transcript)
+  if (!norm) return false
+  const tokens = norm.split(' ').filter((t) => !FILLER_WORDS.has(t))
+  const hasConfirm =
+    CONFIRM_PHRASES.some((p) => norm.includes(p)) ||
+    tokens.some((t) => CONFIRM_WORDS.has(t))
+  const hasDeny =
+    DENY_PHRASES.some((p) => norm.includes(p)) ||
+    tokens.some((t) => DENY_WORDS.has(t))
+  return hasConfirm && hasDeny
+}
+
+/**
+ * Classify a transcribed utterance heard while a card is pending.
+ *
+ * Rule (documented trade-off): the verdict comes from the FIRST meaningful
+ * word (after fillers) or a known multi-word phrase. Token-exact, never
+ * substring — "yesterday" can't approve, "tell me no lies" queues as a
+ * command instead of denying. Single-word utterances decide by membership.
+ * Both sides present ("no wait, yes") -> ambiguous -> ignored (stay pending).
+ *
+ * Known asymmetry, safe direction: "cancel my flight" denies a pending card
+ * (cancel leads), and "yes, do the thing" approves while dropping the tail.
+ * Denying/staying-pending is always safe; approving by misroute would not
+ * be. Multi-intent single breaths are out of scope.
+ */
+export function classifyApprovalSpeech(transcript: string): ApprovalVerdict {
+  const norm = normalizeUtterance(transcript)
+  if (!norm) return null
+  const tokens = norm.split(' ').filter((t) => !FILLER_WORDS.has(t))
+  if (tokens.length === 0) return null
+  const hasConfirm =
+    CONFIRM_PHRASES.some((p) => norm.includes(p)) ||
+    tokens.some((t) => CONFIRM_WORDS.has(t))
+  const hasDeny =
+    DENY_PHRASES.some((p) => norm.includes(p)) ||
+    tokens.some((t) => DENY_WORDS.has(t))
+  // Both sides anywhere -> ambiguous -> stay pending (safe direction).
+  if (hasConfirm && hasDeny) return null
+  // Explicit multi-word phrases decide on their own.
+  if (CONFIRM_PHRASES.some((p) => norm.includes(p))) return 'approved'
+  if (DENY_PHRASES.some((p) => norm.includes(p))) return 'denied'
+  if (!hasConfirm && !hasDeny) return null
+  // Word-only verdicts: single words decide by membership; longer utterances
+  // need a decision word first ("tell me no lies" queues as a command).
+  if (tokens.length === 1) return hasConfirm ? 'approved' : 'denied'
+  const first = tokens[0]
+  if (CONFIRM_WORDS.has(first)) return 'approved'
+  if (DENY_WORDS.has(first)) return 'denied'
+  return null
 }
 
 // ---------------------------------------------------------------------------
