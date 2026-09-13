@@ -24,6 +24,8 @@ export interface HitlRequest {
   toolName: string
   argsJson: string
   classification: ToolClassification
+  /** Permissions-table key (KIEO-014) and card grouping (KIEO-052). */
+  permissionActionType: string
 }
 
 export interface HitlResponse {

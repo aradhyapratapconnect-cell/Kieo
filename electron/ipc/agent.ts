@@ -1,29 +1,86 @@
 // electron/ipc/agent.ts — Renderer <-> agent core IPC bridge.
-// KIEO-012: main->renderer agent-state broadcast, so loop transitions
-// (IDLE/THINKING/AWAITING_APPROVAL/EXECUTING) surface in the Zustand store.
-// Command dispatch ('agent-command' -> runAgentLoop) waits for KIEO-013, when
-// executeToolWithHITL gives the loop a safe executor — dispatching earlier
-// would leave tool calls with no approval path.
-import { ipcMain, type BrowserWindow } from 'electron'
-import type { AgentState } from '../../shared/types'
+// KIEO-013: 'agent-command' dispatches to runAgentLoop with the BYOK model
+// (KIEO-010), the registry ToolSet (KIEO-011), and the HITL executor (this
+// ticket). Turn rows (conversation + user + one assistant message per turn)
+// are created here because tool_execution_log rows need a messageId FK —
+// KIEO-040 later adds history loading/continuation/views on top of these rows.
+import { ipcMain } from 'electron'
+import { getDatabase } from '../../db/database'
+import {
+  createConversation,
+  createMessage,
+  updateMessage
+} from '../../db/tables'
+import { resolveModel } from '../../agent-core/llm/provider'
+import { getKeyStore } from '../secure/keyStore'
+import { toolRegistry, toAiSdkTools } from '../../agent-core/tools/registry'
+import { toolDispatcher } from '../../agent-core/tools/dispatch'
+import { createHitlExecutor } from '../../agent-core/hitl'
+import { runAgentLoop } from '../../agent-core/loop'
+import { broadcastAgentState } from './agentState'
+import { requestApprovalViaRenderer, readHitlTimeoutMs } from './hitl'
 
-let agentWindow: BrowserWindow | null = null
+async function handleAgentCommand(text: string): Promise<void> {
+  if (text.trim().length === 0) return
+  const db = getDatabase()
+  const keyStore = getKeyStore()
 
-export function setAgentWindow(win: BrowserWindow): void {
-  agentWindow = win
-}
-
-/** Forward a loop state transition to the renderer store. Never throws. */
-export function broadcastAgentState(state: AgentState): void {
+  let model
   try {
-    agentWindow?.webContents.send('agent-state', state)
+    ;({ model } = resolveModel({ db, keyStore }))
   } catch (err) {
-    console.error('[kieo] failed to broadcast agent state:', err)
+    // No provider/key yet (Settings UI lands in KIEO-053) or provider error:
+    // loud in logs; KIEO-050 surfaces these to the user inline.
+    console.error(
+      '[kieo] command failed before the LLM call:',
+      err instanceof Error ? err.message : err
+    )
+    return
+  }
+
+  const conv = createConversation(db, { title: text.slice(0, 60) || 'Untitled' })
+  createMessage(db, { conversationId: conv.id, role: 'user', content: text })
+  // One assistant row per turn; the HITL executor accumulates tool_call_json
+  // on it as tool calls arrive (refined to per-step rows in KIEO-040).
+  const assistantMsg = createMessage(db, {
+    conversationId: conv.id,
+    role: 'assistant',
+    content: ''
+  })
+
+  const executor = createHitlExecutor({
+    db,
+    registry: toolRegistry,
+    messageId: assistantMsg.id,
+    requestApproval: requestApprovalViaRenderer,
+    executeTool: (toolName, input) => toolDispatcher.execute(toolName, input),
+    timeoutMs: readHitlTimeoutMs()
+  })
+
+  try {
+    const result = await runAgentLoop(
+      { userText: text },
+      {
+        model,
+        tools: toAiSdkTools(toolRegistry),
+        executor,
+        onStateChange: broadcastAgentState
+      }
+    )
+    updateMessage(db, assistantMsg.id, { content: result.text })
+  } catch (err) {
+    // Loop-level failures (LLM down, max steps): logged; the turn's partial
+    // rows stay for debugging. KIEO-050 will voice/show these per the guide.
+    console.error(
+      '[kieo] command failed:',
+      err instanceof Error ? err.message : err
+    )
   }
 }
 
 export function registerAgentIpc(): void {
-  ipcMain.on('agent-command', (_event, _payload) => {
-    // TODO(KIEO-013): forward to runAgentLoop() with executeToolWithHITL.
+  ipcMain.on('agent-command', (_event, payload: { text?: unknown }) => {
+    const text = typeof payload?.text === 'string' ? payload.text : ''
+    void handleAgentCommand(text)
   })
 }

@@ -163,6 +163,33 @@ export function deleteMessage(db: DatabaseHandle, id: string): boolean {
   return db.prepare('DELETE FROM messages WHERE id = ?').run(id).changes > 0
 }
 
+/**
+ * Patch a message row (used by HITL dispatch to fill in the turn's assistant
+ * message once the loop finishes). Returns true when a row was updated.
+ */
+export function updateMessage(
+  db: DatabaseHandle,
+  id: string,
+  patch: { content?: string; toolCallJson?: string | null }
+): boolean {
+  const sets: string[] = []
+  const params: unknown[] = []
+  if (patch.content !== undefined) {
+    sets.push('content = ?')
+    params.push(patch.content)
+  }
+  if (patch.toolCallJson !== undefined) {
+    sets.push('tool_call_json = ?')
+    params.push(patch.toolCallJson)
+  }
+  if (sets.length === 0) return false
+  params.push(id)
+  return (
+    db.prepare(`UPDATE messages SET ${sets.join(', ')} WHERE id = ?`).run(...params)
+      .changes > 0
+  )
+}
+
 // ---------------------------------------------------------------------------
 // tool_execution_log — the source of truth for Activity/Dashboard (KIEO-042)
 // ---------------------------------------------------------------------------
