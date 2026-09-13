@@ -5,7 +5,7 @@
 // Kept in its own module so electron/ipc/agent.ts and electron/ipc/hitl.ts
 // can both use it without an import cycle.
 import type { BrowserWindow } from 'electron'
-import type { AgentState } from '../../shared/types'
+import type { AgentState, TtsSpeakPayload } from '../../shared/types'
 
 let agentWindow: BrowserWindow | null = null
 
@@ -23,5 +23,17 @@ export function broadcastAgentState(state: AgentState): void {
     getAgentWindow()?.webContents.send('agent-state', state)
   } catch (err) {
     console.error('[kieo] failed to broadcast agent state:', err)
+  }
+}
+
+/**
+ * KIEO-031: deliver synthesized speech PCM for playback. Fire-and-forget by
+ * nature (webContents.send) — playback never gates the loop or the text path.
+ */
+export function broadcastTtsSpeak(payload: TtsSpeakPayload): void {
+  try {
+    getAgentWindow()?.webContents.send('tts-speak', payload)
+  } catch (err) {
+    console.error('[kieo] failed to send speech audio:', err)
   }
 }

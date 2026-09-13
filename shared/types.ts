@@ -42,6 +42,8 @@ export interface KieoApi {
   onAgentState: (cb: (state: AgentState) => void) => () => void
   /** KIEO-030: ship resampled PCM to main for local transcription. */
   transcribeAudio: (pcm: ArrayBuffer, sampleRate: number) => Promise<SttTranscribeResult>
+  /** KIEO-031: synthesized speech PCM from main for playback. */
+  onTtsSpeak: (cb: (payload: TtsSpeakPayload) => void) => () => void
   getSettings: () => Promise<Record<string, unknown>>
   setSetting: (key: string, value: unknown) => Promise<{ ok: boolean }>
 }
@@ -74,6 +76,16 @@ export const STT_USER_MESSAGE: Record<SttErrorCode, string> = {
 /** Renderer-side mic capture failure (never reaches main). Text-only fallback. */
 export const MIC_DENIED_MESSAGE =
   'Microphone unavailable — Kieo is in text-only mode. Check the OS microphone permission to enable voice.'
+
+// ---------------------------------------------------------------------------
+// Speech playback (KIEO-031). Main synthesizes; renderer plays.
+// ---------------------------------------------------------------------------
+
+/** PCM payload for one utterance (Kokoro: 24kHz mono float32). */
+export interface TtsSpeakPayload {
+  pcm: ArrayBuffer
+  sampleRate: number
+}
 
 declare global {
   interface Window {

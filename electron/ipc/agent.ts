@@ -23,7 +23,14 @@ import { registerGitHubTools } from '../../agent-core/tools/github'
 import { createHitlExecutor } from '../../agent-core/hitl'
 import { resolvePermissionPolicy } from '../../agent-core/permissions'
 import { runAgentLoop } from '../../agent-core/loop'
-import { broadcastAgentState } from './agentState'
+import {
+  createKokoroTtsEngine,
+  resolveTtsVoice,
+  shouldSpeakResponse
+} from '../../agent-core/voice/tts'
+import { join } from 'node:path'
+import { app } from 'electron'
+import { broadcastAgentState, broadcastTtsSpeak } from './agentState'
 import { requestApprovalViaRenderer, readHitlTimeoutMs } from './hitl'
 
 // Epic C registrations: each ticket's module registers its implementations
@@ -86,6 +93,19 @@ async function handleAgentCommand(text: string): Promise<void> {
       }
     )
     updateMessage(db, assistantMsg.id, { content: result.text })
+    // KIEO-031: speak the response when TTS is enabled. Best-effort and fully
+    // isolated: synthesis failure is logged and the text path is untouched.
+    if (result.text.trim().length > 0 && shouldSpeakResponse(db)) {
+      try {
+        const speech = await speakResponse(result.text, db)
+        broadcastTtsSpeak({ pcm: speech.buffer, sampleRate: speech.sampleRate })
+      } catch (err) {
+        console.error(
+          '[kieo] TTS failed (text response unaffected):',
+          err instanceof Error ? err.message : err
+        )
+      }
+    }
   } catch (err) {
     // Loop-level failures (LLM down, max steps): logged; the turn's partial
     // rows stay for debugging. KIEO-050 will voice/show these per the guide.
@@ -101,4 +121,21 @@ export function registerAgentIpc(): void {
     const text = typeof payload?.text === 'string' ? payload.text : ''
     void handleAgentCommand(text)
   })
+}
+
+// Lazy singleton: the ~86MB model loads on first spoken turn, never at startup.
+let ttsEngine: ReturnType<typeof createKokoroTtsEngine> | null = null
+
+async function speakResponse(
+  text: string,
+  db: ReturnType<typeof getDatabase>
+): Promise<{ buffer: ArrayBuffer; sampleRate: number }> {
+  ttsEngine ??= createKokoroTtsEngine({
+    modelsDir: join(app.getPath('userData'), 'models')
+  })
+  // Voice resolves per turn so a Settings change applies without restart.
+  const speech = await ttsEngine.synthesize(text, { voice: resolveTtsVoice(db) })
+  const copy = new Float32Array(speech.pcm.length)
+  copy.set(speech.pcm)
+  return { buffer: copy.buffer as ArrayBuffer, sampleRate: speech.sampleRate }
 }
