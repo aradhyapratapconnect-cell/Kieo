@@ -17,6 +17,7 @@ import { toolRegistry, toAiSdkTools } from '../../agent-core/tools/registry'
 import { toolDispatcher } from '../../agent-core/tools/dispatch'
 import { registerFileTools } from '../../agent-core/tools/files'
 import { registerShellTools } from '../../agent-core/tools/shell'
+import { registerAppTools } from '../../agent-core/tools/apps'
 import { createHitlExecutor } from '../../agent-core/hitl'
 import { resolvePermissionPolicy } from '../../agent-core/permissions'
 import { runAgentLoop } from '../../agent-core/loop'
@@ -28,6 +29,7 @@ import { requestApprovalViaRenderer, readHitlTimeoutMs } from './hitl'
 // settings, so no configuration step is needed here).
 registerFileTools(toolDispatcher)
 registerShellTools(toolDispatcher)
+registerAppTools(toolDispatcher)
 
 async function handleAgentCommand(text: string): Promise<void> {
   if (text.trim().length === 0) return
