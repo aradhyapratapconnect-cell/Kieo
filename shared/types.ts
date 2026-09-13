@@ -40,9 +40,40 @@ export interface KieoApi {
   sendCommand: (text: string) => void
   /** KIEO-012: loop state transitions for the Zustand store. */
   onAgentState: (cb: (state: AgentState) => void) => () => void
+  /** KIEO-030: ship resampled PCM to main for local transcription. */
+  transcribeAudio: (pcm: ArrayBuffer, sampleRate: number) => Promise<SttTranscribeResult>
   getSettings: () => Promise<Record<string, unknown>>
   setSetting: (key: string, value: unknown) => Promise<{ ok: boolean }>
 }
+
+// ---------------------------------------------------------------------------
+// Voice contract (KIEO-030). Lives here — not in agent-core — so the renderer
+// can import messages without dragging main-process modules into its bundle.
+// ---------------------------------------------------------------------------
+
+export type SttErrorCode =
+  | 'no-speech'
+  | 'download-failed'
+  | 'not-installed'
+  | 'failed'
+
+export type SttTranscribeResult =
+  | { ok: true; transcript: string }
+  | { ok: false; code: SttErrorCode; message: string }
+
+/** User-facing copy per code (Error Handling Guide wording for no-speech). */
+export const STT_USER_MESSAGE: Record<SttErrorCode, string> = {
+  'no-speech': "I didn't catch that — you can type your command instead.",
+  'download-failed':
+    "Couldn't download the speech model — check your connection once, then voice works offline. Or just type your command.",
+  'not-installed':
+    'Voice engine unavailable on this machine — you can still type every command.',
+  failed: 'Voice transcription failed — you can type your command instead.'
+}
+
+/** Renderer-side mic capture failure (never reaches main). Text-only fallback. */
+export const MIC_DENIED_MESSAGE =
+  'Microphone unavailable — Kieo is in text-only mode. Check the OS microphone permission to enable voice.'
 
 declare global {
   interface Window {

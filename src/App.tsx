@@ -1,7 +1,7 @@
-// src/App.tsx — KIEO-001 scaffold shell.
-// Proves: window launches, Tailwind + design tokens apply, Zustand store works.
-// Full HomeScreen/CommandBar/views land in KIEO-050+ (Epic F).
+// src/App.tsx — KIEO-001 scaffold shell + KIEO-030 command bar.
+// Full HomeScreen/views land in KIEO-050+ (Epic F).
 import { useAgentStore } from './store/useAgentStore'
+import CommandBar from './components/CommandBar'
 
 export default function App(): JSX.Element {
   const agentState = useAgentStore((s) => s.agentState)
@@ -39,23 +39,9 @@ export default function App(): JSX.Element {
         </p>
       </main>
 
-      {/* Floating command bar placeholder (real one: KIEO-050 + KIEO-030). */}
+      {/* Floating command bar: typed + voice input (KIEO-030). */}
       <footer className="flex justify-center px-4 pb-8">
-        <div className="flex w-full max-w-xl items-center gap-2 rounded border border-white/[0.12] bg-bg-base px-3 py-2">
-          <span className="text-text-muted">＋</span>
-          <input
-            className="flex-1 bg-transparent text-[15px] text-text-primary placeholder:text-text-muted focus:outline-none"
-            placeholder="Ask Kieo anything… (command bar lands in KIEO-050)"
-            disabled
-          />
-          <span className="text-text-muted">🎙</span>
-          <button
-            type="button"
-            className="rounded bg-primary px-3 py-1 text-[14px] font-semibold text-bg-base"
-          >
-            Send
-          </button>
-        </div>
+        <CommandBar />
       </footer>
     </div>
   )

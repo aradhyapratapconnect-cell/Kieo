@@ -22,6 +22,7 @@
     "@ai-sdk/groq": "^4.0.40",
     "@ai-sdk/openai": "^4.0.65",
     "@ai-sdk/openai-compatible": "^3.0.47",
+    "@kutalia/whisper-node-addon": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "ai": "^7.0.97",
     "better-sqlite3": "^13.0.3",

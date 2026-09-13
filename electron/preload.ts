@@ -41,6 +41,10 @@ const kieoApi: KieoApi = {
   sendCommand: (text) => {
     ipcRenderer.send('agent-command', { text })
   },
+
+  // KIEO-030: ship resampled PCM to main for local transcription.
+  transcribeAudio: (pcm, sampleRate) =>
+    ipcRenderer.invoke('stt-transcribe', { pcm, sampleRate }),
   getSettings: () => ipcRenderer.invoke('settings-get'),
   setSetting: (key, value) => ipcRenderer.invoke('settings-set', { key, value })
 }

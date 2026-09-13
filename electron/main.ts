@@ -1,19 +1,31 @@
 // electron/main.ts — Electron main process entry point (KIEO-001).
 // Owns app lifecycle, window creation, tray, and IPC registration.
 // Renderer never gets direct Node/IPC access; see preload.ts.
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, session } from 'electron'
 import { createMainWindow } from './windows'
 import { registerTray } from './tray'
 import { registerHitlIpc } from './ipc/hitl'
 import { registerAgentIpc } from './ipc/agent'
-import { setAgentWindow } from './ipc/agentState'
+import { registerSttIpc } from './ipc/stt'
 import { registerSettingsIpc } from './ipc/settings'
+import { setAgentWindow } from './ipc/agentState'
 import { initDatabase } from '../db/database'
 import { initKeyStore } from './secure/keyStore'
 
 let mainWindow: BrowserWindow | null = null
 
 async function onReady(): Promise<void> {
+  // KIEO-030: Electron denies media capture by default — grant the request so
+  // the OS-level mic dialog/permission decides. A denial surfaces in the
+  // renderer as a clean text-only fallback (never a hang). Everything else
+  // stays denied (least privilege); macOS also needs NSMicrophoneUsageDescription
+  // at packaging time (noted for the packaging pass).
+  session.defaultSession.setPermissionRequestHandler(
+    (_webContents, permission, callback) => {
+      callback(permission === 'media')
+    }
+  );
+
   try {
     // KIEO-002: create <userData>/kieo.sqlite on first launch + migrate.
     initDatabase(app.getPath('userData'))
@@ -34,6 +46,7 @@ async function onReady(): Promise<void> {
 
   registerHitlIpc()
   registerAgentIpc()
+  registerSttIpc()
   registerSettingsIpc()
 
   mainWindow = createMainWindow()
@@ -56,3 +69,4 @@ app.on('activate', () => {
     setAgentWindow(mainWindow)
   }
 })
+
