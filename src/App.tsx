@@ -2,9 +2,13 @@
 // Full HomeScreen/views land in KIEO-050+ (Epic F).
 import { useAgentStore } from './store/useAgentStore'
 import CommandBar from './components/CommandBar'
+import WakeWordToggle from './components/WakeWordToggle'
 
 export default function App(): JSX.Element {
   const agentState = useAgentStore((s) => s.agentState)
+  const wakeEnabled = useAgentStore((s) => s.wakeEnabled)
+  const wakePhase = useAgentStore((s) => s.wakePhase)
+  const wakeNote = useAgentStore((s) => s.wakeNote)
 
   return (
     <div className="flex h-full flex-col bg-bg-base text-text-primary">
@@ -18,6 +22,19 @@ export default function App(): JSX.Element {
           <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-text-muted">
             · {agentState}
           </span>
+          {/* KIEO-032: visible wake indicator — never silent activation. */}
+          {wakeEnabled && wakePhase !== 'off' && (
+            <>
+              <span
+                className={`inline-block h-2 w-2 rounded-full ${
+                  wakePhase === 'command' ? 'animate-pulse bg-primary-bright' : 'bg-primary'
+                }`}
+              />
+              <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary">
+                {wakePhase === 'command' ? 'LISTENING' : 'SPOTTING'}
+              </span>
+            </>
+          )}
         </div>
         <button
           type="button"
@@ -40,7 +57,13 @@ export default function App(): JSX.Element {
       </main>
 
       {/* Floating command bar: typed + voice input (KIEO-030). */}
-      <footer className="flex justify-center px-4 pb-8">
+      <footer className="flex flex-col items-center gap-2 px-4 pb-8">
+        <WakeWordToggle />
+        {wakeNote !== null && (
+          <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary">
+            {wakeNote}
+          </p>
+        )}
         <CommandBar />
       </footer>
     </div>

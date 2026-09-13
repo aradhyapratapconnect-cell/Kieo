@@ -8,6 +8,7 @@
 // persistent text-only banner (retry stays available if the OS grant changes).
 import { useEffect, useRef, useState } from 'react'
 import { MIC_DENIED_MESSAGE, STT_USER_MESSAGE } from '../../shared/types'
+import { transcribeAndSubmit } from '../voice/submit'
 
 type MicMode = 'idle' | 'recording' | 'transcribing'
 
@@ -119,17 +120,16 @@ export default function CommandBar(): JSX.Element {
         setNotice({ kind: 'info', text: STT_USER_MESSAGE.failed })
         return
       }
-      if (pcm.byteLength === 0) {
-        setNotice({ kind: 'info', text: STT_USER_MESSAGE['no-speech'] })
-        return
-      }
-      const res = await window.kieo.transcribeAudio(pcm, sampleRate)
-      if (res.ok && res.transcript.trim().length > 0) {
-        submit(res.transcript)
-      } else if (res.ok) {
-        setNotice({ kind: 'info', text: STT_USER_MESSAGE['no-speech'] })
+      // Shared with wake-word follow-ups (KIEO-032): one submit path.
+      const res = await transcribeAndSubmit(pcm, sampleRate)
+      if (res.ok) {
+        setText('')
+        setNotice(null)
+        setLastSent(
+          res.transcript.length > 90 ? `${res.transcript.slice(0, 90)}…` : res.transcript
+        )
       } else {
-        setNotice({ kind: 'info', text: STT_USER_MESSAGE[res.code] ?? res.message })
+        setNotice({ kind: 'info', text: res.notice })
       }
     } catch {
       setNotice({ kind: 'info', text: STT_USER_MESSAGE.failed })
