@@ -232,7 +232,13 @@ const shellTools: CoreToolDefinition[] = [
       args: z
         .array(z.string())
         .default([])
-        .describe('Argument list passed verbatim to spawn(), never interpreted by a shell.')
+        .describe('Argument list passed verbatim to spawn(), never interpreted by a shell.'),
+      // Added in KIEO-021 (additive, optional): constrains the working dir
+      // inside the workspace so the whitelist AC is enforceable per call.
+      cwd: z
+        .string()
+        .optional()
+        .describe('Optional working directory, resolved inside the workspace root (default: the root itself). Paths escaping the root are rejected.')
     }
   }
 ]

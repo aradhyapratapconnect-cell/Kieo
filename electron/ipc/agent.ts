@@ -16,6 +16,7 @@ import { getKeyStore } from '../secure/keyStore'
 import { toolRegistry, toAiSdkTools } from '../../agent-core/tools/registry'
 import { toolDispatcher } from '../../agent-core/tools/dispatch'
 import { registerFileTools } from '../../agent-core/tools/files'
+import { registerShellTools } from '../../agent-core/tools/shell'
 import { createHitlExecutor } from '../../agent-core/hitl'
 import { resolvePermissionPolicy } from '../../agent-core/permissions'
 import { runAgentLoop } from '../../agent-core/loop'
@@ -26,6 +27,7 @@ import { requestApprovalViaRenderer, readHitlTimeoutMs } from './hitl'
 // into the process-wide dispatcher (workspace root resolves per call from
 // settings, so no configuration step is needed here).
 registerFileTools(toolDispatcher)
+registerShellTools(toolDispatcher)
 
 async function handleAgentCommand(text: string): Promise<void> {
   if (text.trim().length === 0) return
