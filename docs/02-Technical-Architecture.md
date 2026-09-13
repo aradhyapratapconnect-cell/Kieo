@@ -16,8 +16,8 @@
 | Optional cloud sync | **Supabase** (Postgres + Auth) | Only used if the user opts into login; provides Auth, Postgres, and Row-Level Security out of the box. |
 | Secrets storage | **Electron `safeStorage`** | OS-native encryption (macOS Keychain / Windows Credential Manager / libsecret on Linux) for API keys — never stored in plaintext. |
 | Shell execution | **Node.js `child_process.spawn`** | Structured `(command, args[])` invocation only — never `exec()`/`eval()` with a raw string — to prevent shell injection. |
-| STT | TBD provider, abstracted behind an internal `SttEngine` interface | Allows swapping engines without touching the agent core. |
-| TTS | TBD provider, abstracted behind an internal `TtsEngine` interface | Same reasoning as STT. |
+| STT | **Whisper.cpp** (base or small model size), abstracted behind an internal `SttEngine` interface | Fully local, open-source, no API key or per-use cost, works offline. `base`/`small` chosen over `medium`/`large` to keep latency low on a normal laptop CPU while staying accurate enough for everyday commands. Interface abstraction still allows swapping engines later without touching the agent core. |
+| TTS | **Kokoro**, abstracted behind an internal `TtsEngine` interface | Small, fully open-source, local TTS model with noticeably more natural output than typical local alternatives (e.g., Piper), while keeping the same no-API-key, no-cost, offline-capable profile as Whisper.cpp. |
 
 ## 2. Project Folder Structure
 

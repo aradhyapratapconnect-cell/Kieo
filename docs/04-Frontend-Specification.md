@@ -109,7 +109,7 @@ echo done
 - **Data sent:** Only settings/memory data the user has enabled for sync — never API keys, never local conversation content unless a future feature explicitly adds that with clear consent.
 - **Expected response:** Synced row data, or a graceful sync-paused state on failure.
 
-### 2.6 STT/TTS Engines
-- **What it does:** Converts speech to text (commands, wake word, voice confirmations) and text to speech (responses).
-- **Endpoints:** Implementation-dependent — if a local engine, no network endpoint at all; if a cloud fallback is later added, this section should be updated with the specific endpoint and data sent (audio bytes) before that ships.
-- **Data sent/received:** Audio in, transcript text out (STT); text in, audio out (TTS). No audio should be persisted to disk or sent anywhere the user hasn't explicitly configured.
+### 2.6 STT/TTS Engines — Whisper.cpp + Kokoro (local)
+- **What it does:** Converts speech to text (commands, wake word follow-up, voice confirmations) using **Whisper.cpp** (base/small), and text to speech (responses) using **Kokoro**.
+- **Endpoints:** None — both run fully locally as in-process/child-process models. No network call, no API key, no per-use cost. If a cloud fallback is ever added later, this section should be updated with the specific endpoint and data sent (audio bytes) before that ships.
+- **Data sent/received:** Audio in, transcript text out (STT, Whisper.cpp); text in, audio out (TTS, Kokoro) — entirely on-device. No audio is persisted to disk or sent anywhere, consistent with the app's local-first design.

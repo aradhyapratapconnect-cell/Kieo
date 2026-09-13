@@ -160,7 +160,7 @@
 ## Epic D: Voice
 
 ### KIEO-030 — STT Integration & Command Bar Voice Input
-**Description:** Integrate a speech-to-text engine behind the `SttEngine` interface. Wire it to the command bar so the user can speak a command instead of typing. On failure to transcribe, fall back to showing the text input clearly (per the Error Handling Guide).
+**Description:** Integrate **Whisper.cpp** (base or small model size) behind the `SttEngine` interface, running fully locally with no API key or network call required. Wire it to the command bar so the user can speak a command instead of typing. On failure to transcribe, fall back to showing the text input clearly (per the Error Handling Guide).
 **Acceptance Criteria:**
 - A spoken command is correctly transcribed and submitted to the agent loop.
 - Failure to detect speech shows "I didn't catch that — you can type your command instead" and does not hang.
@@ -171,7 +171,7 @@
 ---
 
 ### KIEO-031 — TTS Integration for Responses
-**Description:** Integrate a text-to-speech engine behind the `TtsEngine` interface so Kieo speaks its responses aloud, in addition to displaying them as text.
+**Description:** Integrate **Kokoro** (local, open-source TTS model) behind the `TtsEngine` interface so Kieo speaks its responses aloud, in addition to displaying them as text. No API key or network call required.
 **Acceptance Criteria:**
 - Every assistant response is spoken aloud when TTS is enabled.
 - TTS failure does not block or hide the text response (per Error Handling Guide).
