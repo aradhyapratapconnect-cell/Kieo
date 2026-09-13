@@ -19,6 +19,7 @@ import { registerFileTools } from '../../agent-core/tools/files'
 import { registerShellTools } from '../../agent-core/tools/shell'
 import { registerAppTools } from '../../agent-core/tools/apps'
 import { registerEmailTools } from '../../agent-core/tools/email'
+import { registerGitHubTools } from '../../agent-core/tools/github'
 import { createHitlExecutor } from '../../agent-core/hitl'
 import { resolvePermissionPolicy } from '../../agent-core/permissions'
 import { runAgentLoop } from '../../agent-core/loop'
@@ -32,6 +33,7 @@ registerFileTools(toolDispatcher)
 registerShellTools(toolDispatcher)
 registerAppTools(toolDispatcher)
 registerEmailTools(toolDispatcher)
+registerGitHubTools(toolDispatcher)
 
 async function handleAgentCommand(text: string): Promise<void> {
   if (text.trim().length === 0) return
