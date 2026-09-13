@@ -36,6 +36,8 @@ export interface KieoApi {
   onHitlRequest: (cb: (req: HitlRequest) => void) => () => void
   sendHitlResponse: (resp: HitlResponse) => void
   sendCommand: (text: string) => void
+  /** KIEO-012: loop state transitions for the Zustand store. */
+  onAgentState: (cb: (state: AgentState) => void) => () => void
   getSettings: () => Promise<Record<string, unknown>>
   setSetting: (key: string, value: unknown) => Promise<{ ok: boolean }>
 }

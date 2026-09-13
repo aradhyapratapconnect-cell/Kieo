@@ -5,7 +5,7 @@ import { app, BrowserWindow } from 'electron'
 import { createMainWindow } from './windows'
 import { registerTray } from './tray'
 import { registerHitlIpc } from './ipc/hitl'
-import { registerAgentIpc } from './ipc/agent'
+import { registerAgentIpc, setAgentWindow } from './ipc/agent'
 import { registerSettingsIpc } from './ipc/settings'
 import { initDatabase } from '../db/database'
 import { initKeyStore } from './secure/keyStore'
@@ -36,6 +36,7 @@ async function onReady(): Promise<void> {
   registerSettingsIpc()
 
   mainWindow = createMainWindow()
+  setAgentWindow(mainWindow)
   registerTray(mainWindow)
 }
 
@@ -51,5 +52,6 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     mainWindow = createMainWindow()
+    setAgentWindow(mainWindow)
   }
 })
