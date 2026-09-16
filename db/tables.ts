@@ -103,6 +103,17 @@ export function updateConversationTitle(
   return info.changes > 0
 }
 
+/**
+ * Bump a conversation's updated_at so recently-active chats sort first
+ * (KIEO-040). Call after appending any message. Returns true when updated.
+ */
+export function touchConversation(db: DatabaseHandle, id: string): boolean {
+  const info = db
+    .prepare('UPDATE conversations SET updated_at = ? WHERE id = ?')
+    .run(Date.now(), id)
+  return info.changes > 0
+}
+
 /** Returns true when a row was actually deleted (messages cascade). */
 export function deleteConversation(db: DatabaseHandle, id: string): boolean {
   return db.prepare('DELETE FROM conversations WHERE id = ?').run(id).changes > 0
@@ -152,9 +163,11 @@ export function listMessagesByConversation(
   conversationId: string,
   limit = 500
 ): MessageRow[] {
+  // KIEO-040: rowid tie-break keeps per-turn user/tool/assistant rows in
+  // insertion order when several share the same created_at millisecond.
   return db
     .prepare(
-      'SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC LIMIT ?'
+      'SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC, rowid ASC LIMIT ?'
     )
     .all(conversationId, limit) as MessageRow[]
 }
@@ -166,11 +179,15 @@ export function deleteMessage(db: DatabaseHandle, id: string): boolean {
 /**
  * Patch a message row (used by HITL dispatch to fill in the turn's assistant
  * message once the loop finishes). Returns true when a row was updated.
+ *
+ * KIEO-040: optional createdAt re-stamps the row so a finalized assistant
+ * message sorts AFTER the per-tool rows created during the turn (user ->
+ * tools -> assistant), instead of staying at its placeholder position.
  */
 export function updateMessage(
   db: DatabaseHandle,
   id: string,
-  patch: { content?: string; toolCallJson?: string | null }
+  patch: { content?: string; toolCallJson?: string | null; createdAt?: number }
 ): boolean {
   const sets: string[] = []
   const params: unknown[] = []
@@ -181,6 +198,10 @@ export function updateMessage(
   if (patch.toolCallJson !== undefined) {
     sets.push('tool_call_json = ?')
     params.push(patch.toolCallJson)
+  }
+  if (patch.createdAt !== undefined) {
+    sets.push('created_at = ?')
+    params.push(patch.createdAt)
   }
   if (sets.length === 0) return false
   params.push(id)

@@ -1,16 +1,26 @@
 // electron/ipc/agent.ts — Renderer <-> agent core IPC bridge.
 // KIEO-013: 'agent-command' dispatches to runAgentLoop with the BYOK model
-// (KIEO-010), the registry ToolSet (KIEO-011), and the HITL executor (this
-// ticket). Turn rows (conversation + user + one assistant message per turn)
-// are created here because tool_execution_log rows need a messageId FK —
-// KIEO-040 later adds history loading/continuation/views on top of these rows.
+// (KIEO-010), the registry ToolSet (KIEO-011), and the HITL executor.
+// KIEO-040: full conversation persistence — every turn appends user +
+// assistant + per-tool message rows, loads prior history for LLM context,
+// and supports continuing a past conversation via conversationId. Turn rows
+// are created here because tool_execution_log rows need a messageId FK.
 import { ipcMain } from 'electron'
 import { getDatabase } from '../../db/database'
 import {
-  createConversation,
-  createMessage,
-  updateMessage
+  getConversation,
+  listConversations,
+  listMessagesByConversation
 } from '../../db/tables'
+import {
+  appendAssistantMessage,
+  appendToolMessage,
+  appendUserMessage,
+  ensureConversation,
+  finalizeAssistantMessage,
+  generateConversationTitle,
+  loadHistoryModelMessages
+} from '../../agent-core/conversations'
 import { resolveModel } from '../../agent-core/llm/provider'
 import { getKeyStore } from '../secure/keyStore'
 import { toolRegistry, toAiSdkTools } from '../../agent-core/tools/registry'
@@ -42,35 +52,49 @@ registerAppTools(toolDispatcher)
 registerEmailTools(toolDispatcher)
 registerGitHubTools(toolDispatcher)
 
-async function handleAgentCommand(text: string): Promise<void> {
-  if (text.trim().length === 0) return
+async function handleAgentCommand(
+  text: string,
+  conversationId?: string
+): Promise<string | null> {
+  if (text.trim().length === 0) return null
   const db = getDatabase()
   const keyStore = getKeyStore()
+
+  // KIEO-040: reuse a past conversation when asked (KIEO-054 continuation),
+  // otherwise start a fresh one. History is loaded BEFORE appending so the
+  // loop sees prior turns but never a duplicated new user message.
+  const conv = ensureConversation(db, {
+    conversationId,
+    title: generateConversationTitle(text)
+  })
+  const history = loadHistoryModelMessages(db, conv.id)
+  appendUserMessage(db, conv.id, text)
+  // One assistant row per turn; the HITL executor accumulates tool_call_json
+  // on it as tool calls arrive, and per-tool rows land below as each tool
+  // resolves — so history shows user/tool/assistant with correct roles.
+  const assistantMsg = appendAssistantMessage(db, conv.id, '')
 
   let model
   try {
     ;({ model } = resolveModel({ db, keyStore }))
   } catch (err) {
     // No provider/key yet (Settings UI lands in KIEO-053) or provider error:
-    // loud in logs; KIEO-050 surfaces these to the user inline.
+    // persist the failure as the assistant message so the turn is visible in
+    // history after restart instead of an orphaned empty row.
+    const message = err instanceof Error ? err.message : String(err)
+    try {
+      finalizeAssistantMessage(db, conv.id, assistantMsg.id, message, null)
+    } catch {
+      // Persistence must never mask the original provider error.
+    }
     console.error(
       '[kieo] command failed before the LLM call:',
       err instanceof Error ? err.message : err
     )
-    return
+    return conv.id
   }
 
-  const conv = createConversation(db, { title: text.slice(0, 60) || 'Untitled' })
-  createMessage(db, { conversationId: conv.id, role: 'user', content: text })
-  // One assistant row per turn; the HITL executor accumulates tool_call_json
-  // on it as tool calls arrive (refined to per-step rows in KIEO-040).
-  const assistantMsg = createMessage(db, {
-    conversationId: conv.id,
-    role: 'assistant',
-    content: ''
-  })
-
-  const executor = createHitlExecutor({
+  const baseExecutor = createHitlExecutor({
     db,
     registry: toolRegistry,
     messageId: assistantMsg.id,
@@ -82,9 +106,29 @@ async function handleAgentCommand(text: string): Promise<void> {
     timeoutMs: readHitlTimeoutMs()
   })
 
+  // Persist each tool outcome as its own `tool` message row as the loop runs
+  // (insertion order = execution order, via rowid tie-break in the query).
+  const executor: typeof baseExecutor = async (req, ctx) => {
+    const result = await baseExecutor(req, ctx)
+    try {
+      appendToolMessage(
+        db,
+        conv.id,
+        { toolCallId: req.toolCallId, toolName: req.toolName, input: req.input },
+        result
+      )
+    } catch (persistErr) {
+      console.error(
+        '[kieo] failed to persist tool message (turn continues):',
+        persistErr instanceof Error ? persistErr.message : persistErr
+      )
+    }
+    return result
+  }
+
   try {
     const result = await runAgentLoop(
-      { userText: text },
+      { userText: text, history },
       {
         model,
         tools: toAiSdkTools(toolRegistry),
@@ -92,7 +136,12 @@ async function handleAgentCommand(text: string): Promise<void> {
         onStateChange: broadcastAgentState
       }
     )
-    updateMessage(db, assistantMsg.id, { content: result.text })
+    const toolCalls = result.executedTools.map((t) => ({
+      toolCallId: t.toolCallId,
+      toolName: t.toolName,
+      input: t.input
+    }))
+    finalizeAssistantMessage(db, conv.id, assistantMsg.id, result.text, toolCalls)
     // KIEO-031: speak the response when TTS is enabled. Best-effort and fully
     // isolated: synthesis failure is logged and the text path is untouched.
     if (result.text.trim().length > 0 && shouldSpeakResponse(db)) {
@@ -107,20 +156,76 @@ async function handleAgentCommand(text: string): Promise<void> {
       }
     }
   } catch (err) {
-    // Loop-level failures (LLM down, max steps): logged; the turn's partial
-    // rows stay for debugging. KIEO-050 will voice/show these per the guide.
+    // Loop-level failures (LLM down, max steps): persist the message so the
+    // turn stays visible in history; partial tool rows already landed above.
+    // KIEO-050 will voice/show these per the guide.
+    const message = err instanceof Error ? err.message : String(err)
+    try {
+      finalizeAssistantMessage(db, conv.id, assistantMsg.id, message, null)
+    } catch {
+      // Never mask the original loop error with a persistence error.
+    }
     console.error(
       '[kieo] command failed:',
       err instanceof Error ? err.message : err
     )
+    return conv.id
   }
+  return conv.id
 }
 
 export function registerAgentIpc(): void {
-  ipcMain.on('agent-command', (_event, payload: { text?: unknown }) => {
-    const text = typeof payload?.text === 'string' ? payload.text : ''
-    void handleAgentCommand(text)
+  ipcMain.on(
+    'agent-command',
+    (_event, payload: { text?: unknown; conversationId?: unknown }) => {
+      const text = typeof payload?.text === 'string' ? payload.text : ''
+      const conversationId =
+        typeof payload?.conversationId === 'string' ? payload.conversationId : undefined
+      void handleAgentCommand(text, conversationId)
+    }
+  )
+
+  // KIEO-040 read path for Conversations view (KIEO-054) + restart restore.
+  // Fire-and-forget `agent-command` stays for the home command bar; the
+  // invoke variant returns the target conversation id for continuation UX.
+  ipcMain.handle(
+    'agent-send',
+    async (_event, payload: { text?: unknown; conversationId?: unknown }) => {
+      const text = typeof payload?.text === 'string' ? payload.text : ''
+      const conversationId =
+        typeof payload?.conversationId === 'string' ? payload.conversationId : undefined
+      const id = await handleAgentCommand(text, conversationId)
+      return { conversationId: id }
+    }
+  )
+  ipcMain.handle('conversations-list', async (_event, payload?: { limit?: unknown }) => {
+    const db = getDatabase()
+    const limit =
+      typeof payload?.limit === 'number' && Number.isFinite(payload.limit)
+        ? Math.max(1, Math.min(500, Math.floor(payload.limit)))
+        : 100
+    return listConversations(db, limit)
   })
+  ipcMain.handle(
+    'conversation-get',
+    async (_event, payload: { id?: unknown }) => {
+      const db = getDatabase()
+      if (typeof payload?.id !== 'string') return null
+      return getConversation(db, payload.id) ?? null
+    }
+  )
+  ipcMain.handle(
+    'messages-list',
+    async (_event, payload: { conversationId?: unknown; limit?: unknown }) => {
+      const db = getDatabase()
+      if (typeof payload?.conversationId !== 'string') return []
+      const limit =
+        typeof payload?.limit === 'number' && Number.isFinite(payload.limit)
+          ? Math.max(1, Math.min(1000, Math.floor(payload.limit)))
+          : 500
+      return listMessagesByConversation(db, payload.conversationId, limit)
+    }
+  )
 }
 
 // Lazy singleton: the ~86MB model loads on first spoken turn, never at startup.

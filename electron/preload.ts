@@ -36,11 +36,18 @@ const kieoApi: KieoApi = {
     }
   },
 
-  // Agent + settings bridges are stubbed here; real channels land in
-  // KIEO-012 (agent) and KIEO-053 (settings).
-  sendCommand: (text) => {
-    ipcRenderer.send('agent-command', { text })
+  // Agent commands: fire-and-forget for the home bar, invoke variant when
+  // the caller needs the conversation id (KIEO-040 continuation).
+  sendCommand: (text, conversationId) => {
+    ipcRenderer.send('agent-command', { text, conversationId })
   },
+  sendCommandAsync: (text, conversationId) =>
+    ipcRenderer.invoke('agent-send', { text, conversationId }),
+  // KIEO-040 history read path (restart restore + Conversations view).
+  listConversations: (limit) => ipcRenderer.invoke('conversations-list', { limit }),
+  getConversation: (id) => ipcRenderer.invoke('conversation-get', { id }),
+  listMessages: (conversationId, limit) =>
+    ipcRenderer.invoke('messages-list', { conversationId, limit }),
 
   // KIEO-030: ship resampled PCM to main for local transcription.
   transcribeAudio: (pcm, sampleRate) =>

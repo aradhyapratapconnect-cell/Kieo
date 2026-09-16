@@ -33,11 +33,40 @@ export interface HitlResponse {
   status: 'approved' | 'denied'
 }
 
+/** KIEO-040: conversation/message DTOs (mirror db/tables rows, renderer-safe). */
+export interface ConversationDto {
+  id: string
+  title: string
+  created_at: number
+  updated_at: number
+}
+
+export type ConversationMessageRole = 'user' | 'assistant' | 'tool'
+
+export interface ConversationMessageDto {
+  id: string
+  conversation_id: string
+  role: ConversationMessageRole
+  content: string
+  tool_call_json: string | null
+  created_at: number
+}
+
 /** Whitelisted renderer API exposed via preload contextBridge. No raw ipcRenderer. */
 export interface KieoApi {
   onHitlRequest: (cb: (req: HitlRequest) => void) => () => void
   sendHitlResponse: (resp: HitlResponse) => void
-  sendCommand: (text: string) => void
+  /** KIEO-040: optional conversationId continues a past conversation. */
+  sendCommand: (text: string, conversationId?: string) => void
+  /** Invoke variant that resolves with the target conversation id. */
+  sendCommandAsync: (
+    text: string,
+    conversationId?: string
+  ) => Promise<{ conversationId: string | null }>
+  /** KIEO-040 read path for history restore + Conversations view (KIEO-054). */
+  listConversations: (limit?: number) => Promise<ConversationDto[]>
+  getConversation: (id: string) => Promise<ConversationDto | null>
+  listMessages: (conversationId: string, limit?: number) => Promise<ConversationMessageDto[]>
   /** KIEO-012: loop state transitions for the Zustand store. */
   onAgentState: (cb: (state: AgentState) => void) => () => void
   /** KIEO-030: ship resampled PCM to main for local transcription. */
