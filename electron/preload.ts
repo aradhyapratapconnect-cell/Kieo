@@ -48,6 +48,10 @@ const kieoApi: KieoApi = {
   getConversation: (id) => ipcRenderer.invoke('conversation-get', { id }),
   listMessages: (conversationId, limit) =>
     ipcRenderer.invoke('messages-list', { conversationId, limit }),
+  // KIEO-041 Memory view.
+  listMemoryFacts: () => ipcRenderer.invoke('memory-list'),
+  updateMemoryFact: (id, fact) => ipcRenderer.invoke('memory-update', { id, fact }),
+  deleteMemoryFact: (id) => ipcRenderer.invoke('memory-delete', { id }),
 
   // KIEO-030: ship resampled PCM to main for local transcription.
   transcribeAudio: (pcm, sampleRate) =>

@@ -21,6 +21,7 @@ import {
   generateConversationTitle,
   loadHistoryModelMessages
 } from '../../agent-core/conversations'
+import { buildMemoryContext, learnFacts } from '../../agent-core/memory/store'
 import { resolveModel } from '../../agent-core/llm/provider'
 import { getKeyStore } from '../secure/keyStore'
 import { toolRegistry, toAiSdkTools } from '../../agent-core/tools/registry'
@@ -68,11 +69,15 @@ async function handleAgentCommand(
     title: generateConversationTitle(text)
   })
   const history = loadHistoryModelMessages(db, conv.id)
-  appendUserMessage(db, conv.id, text)
+  const userRow = appendUserMessage(db, conv.id, text)
   // One assistant row per turn; the HITL executor accumulates tool_call_json
   // on it as tool calls arrive, and per-tool rows land below as each tool
   // resolves — so history shows user/tool/assistant with correct roles.
   const assistantMsg = appendAssistantMessage(db, conv.id, '')
+  // KIEO-041: durable user facts ride as system context. Read fresh every
+  // turn so a Memory-view edit/delete applies to the very next call with no
+  // restart; the current turn's own statement is learned AFTER (future only).
+  const memoryContext = buildMemoryContext(db)
 
   let model
   try {
@@ -128,7 +133,7 @@ async function handleAgentCommand(
 
   try {
     const result = await runAgentLoop(
-      { userText: text, history },
+      { userText: text, history, system: memoryContext || undefined },
       {
         model,
         tools: toAiSdkTools(toolRegistry),
@@ -142,6 +147,16 @@ async function handleAgentCommand(
       input: t.input
     }))
     finalizeAssistantMessage(db, conv.id, assistantMsg.id, result.text, toolCalls)
+    // KIEO-041: mine USER text only (never assistant/tool output) for durable
+    // facts. Best-effort — extraction must never break the turn.
+    try {
+      learnFacts(db, [text], userRow.id)
+    } catch (learnErr) {
+      console.error(
+        '[kieo] memory learn failed (turn unaffected):',
+        learnErr instanceof Error ? learnErr.message : learnErr
+      )
+    }
     // KIEO-031: speak the response when TTS is enabled. Best-effort and fully
     // isolated: synthesis failure is logged and the text path is untouched.
     if (result.text.trim().length > 0 && shouldSpeakResponse(db)) {

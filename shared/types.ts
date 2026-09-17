@@ -52,6 +52,15 @@ export interface ConversationMessageDto {
   created_at: number
 }
 
+/** KIEO-041: memory fact DTO (mirrors db/tables MemoryFactRow). */
+export interface MemoryFactDto {
+  id: string
+  fact: string
+  source_message_id: string | null
+  created_at: number
+  edited_by_user: number
+}
+
 /** Whitelisted renderer API exposed via preload contextBridge. No raw ipcRenderer. */
 export interface KieoApi {
   onHitlRequest: (cb: (req: HitlRequest) => void) => () => void
@@ -67,6 +76,10 @@ export interface KieoApi {
   listConversations: (limit?: number) => Promise<ConversationDto[]>
   getConversation: (id: string) => Promise<ConversationDto | null>
   listMessages: (conversationId: string, limit?: number) => Promise<ConversationMessageDto[]>
+  /** KIEO-041 Memory view: list/edit/delete durable facts. */
+  listMemoryFacts: () => Promise<MemoryFactDto[]>
+  updateMemoryFact: (id: string, fact: string) => Promise<{ ok: boolean }>
+  deleteMemoryFact: (id: string) => Promise<{ ok: boolean }>
   /** KIEO-012: loop state transitions for the Zustand store. */
   onAgentState: (cb: (state: AgentState) => void) => () => void
   /** KIEO-030: ship resampled PCM to main for local transcription. */
