@@ -61,6 +61,46 @@ export interface MemoryFactDto {
   edited_by_user: number
 }
 
+/** KIEO-042: one tool_execution_log row (every field the UI may show). */
+export interface ToolExecutionLogDto {
+  id: string
+  message_id: string
+  tool_name: string
+  args_json: string
+  classification: ToolClassification
+  approval_status: ApprovalStatus
+  result_json: string | null
+  created_at: number
+}
+
+export interface ToolLogsFilter {
+  classification?: ToolClassification
+  approvalStatus?: ApprovalStatus
+  limit?: number
+}
+
+/** Clamp + validate a renderer-supplied filter (shared by main + tests). */
+export function normalizeToolLogsFilter(
+  raw?: Partial<ToolLogsFilter> | null
+): Required<Pick<ToolLogsFilter, 'limit'>> & Pick<ToolLogsFilter, 'classification' | 'approvalStatus'> {
+  const classification =
+    raw?.classification === 'read_only' || raw?.classification === 'dangerous'
+      ? raw.classification
+      : undefined
+  const approvalStatus =
+    raw?.approvalStatus === 'approved' ||
+    raw?.approvalStatus === 'denied' ||
+    raw?.approvalStatus === 'timeout' ||
+    raw?.approvalStatus === 'auto_approved'
+      ? raw.approvalStatus
+      : undefined
+  const limit =
+    typeof raw?.limit === 'number' && Number.isFinite(raw.limit)
+      ? Math.max(1, Math.min(500, Math.floor(raw.limit)))
+      : 200
+  return { classification, approvalStatus, limit }
+}
+
 /** Whitelisted renderer API exposed via preload contextBridge. No raw ipcRenderer. */
 export interface KieoApi {
   onHitlRequest: (cb: (req: HitlRequest) => void) => () => void
@@ -80,6 +120,9 @@ export interface KieoApi {
   listMemoryFacts: () => Promise<MemoryFactDto[]>
   updateMemoryFact: (id: string, fact: string) => Promise<{ ok: boolean }>
   deleteMemoryFact: (id: string) => Promise<{ ok: boolean }>
+  /** KIEO-042 Activity/Dashboard: chronological tool history + live updates. */
+  listToolLogs: (filter?: ToolLogsFilter) => Promise<ToolExecutionLogDto[]>
+  onToolLogsUpdated: (cb: () => void) => () => void
   /** KIEO-012: loop state transitions for the Zustand store. */
   onAgentState: (cb: (state: AgentState) => void) => () => void
   /** KIEO-030: ship resampled PCM to main for local transcription. */

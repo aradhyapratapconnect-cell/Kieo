@@ -1,13 +1,22 @@
 // src/App.tsx — KIEO-001 scaffold shell + KIEO-030 command bar.
-// KIEO-041 wires the Memory view behind a minimal Home/Memory switch;
-// full sidebar navigation lands in KIEO-051 (Epic F).
+// KIEO-041/042 wire Memory + Activity/Dashboard behind a minimal view
+// switch; full sidebar navigation lands in KIEO-051 (Epic F).
 import { useState } from 'react'
 import { useAgentStore } from './store/useAgentStore'
 import CommandBar from './components/CommandBar'
 import WakeWordToggle from './components/WakeWordToggle'
+import ActivityView from './views/Activity'
+import DashboardView from './views/Dashboard'
 import MemoryView from './views/Memory'
 
-type HomeView = 'home' | 'memory'
+type HomeView = 'home' | 'memory' | 'activity' | 'dashboard'
+
+const NAV_ITEMS: Array<{ id: HomeView; label: string }> = [
+  { id: 'home', label: 'Home' },
+  { id: 'memory', label: 'Memory' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'dashboard', label: 'Dashboard' }
+]
 
 export default function App(): JSX.Element {
   const agentState = useAgentStore((s) => s.agentState)
@@ -43,30 +52,21 @@ export default function App(): JSX.Element {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setView('home')}
-            aria-pressed={view === 'home'}
-            className={`rounded border px-2 py-1 font-mono text-[11px] uppercase tracking-[0.06em] ${
-              view === 'home'
-                ? 'border-primary/60 text-primary-bright'
-                : 'border-white/10 text-text-muted hover:text-text-secondary'
-            }`}
-          >
-            Home
-          </button>
-          <button
-            type="button"
-            onClick={() => setView('memory')}
-            aria-pressed={view === 'memory'}
-            className={`rounded border px-2 py-1 font-mono text-[11px] uppercase tracking-[0.06em] ${
-              view === 'memory'
-                ? 'border-primary/60 text-primary-bright'
-                : 'border-white/10 text-text-muted hover:text-text-secondary'
-            }`}
-          >
-            Memory
-          </button>
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setView(item.id)}
+              aria-pressed={view === item.id}
+              className={`rounded border px-2 py-1 font-mono text-[11px] uppercase tracking-[0.06em] ${
+                view === item.id
+                  ? 'border-primary/60 text-primary-bright'
+                  : 'border-white/10 text-text-muted hover:text-text-secondary'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
           <button
             type="button"
             aria-label="Settings"
@@ -77,9 +77,11 @@ export default function App(): JSX.Element {
         </div>
       </header>
 
-      {view === 'memory' ? (
+      {view !== 'home' ? (
         <main className="flex-1 overflow-y-auto">
-          <MemoryView />
+          {view === 'memory' && <MemoryView />}
+          {view === 'activity' && <ActivityView />}
+          {view === 'dashboard' && <DashboardView />}
         </main>
       ) : (
         /* Center wordmark — emptiness is intentional (spec 1.5). */

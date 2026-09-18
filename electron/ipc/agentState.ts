@@ -37,3 +37,16 @@ export function broadcastTtsSpeak(payload: TtsSpeakPayload): void {
     console.error('[kieo] failed to send speech audio:', err)
   }
 }
+
+/**
+ * KIEO-042: notify Activity/Dashboard views that tool_execution_log changed.
+ * Payload-free — the renderer refetches via listToolLogs with its own
+ * filters. Never throws (a missed tick just means the next one refreshes).
+ */
+export function broadcastToolLogsUpdated(): void {
+  try {
+    getAgentWindow()?.webContents.send('tool-logs-updated')
+  } catch (err) {
+    console.error('[kieo] failed to broadcast tool log update:', err)
+  }
+}

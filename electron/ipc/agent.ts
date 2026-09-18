@@ -41,7 +41,7 @@ import {
 } from '../../agent-core/voice/tts'
 import { join } from 'node:path'
 import { app } from 'electron'
-import { broadcastAgentState, broadcastTtsSpeak } from './agentState'
+import { broadcastAgentState, broadcastToolLogsUpdated, broadcastTtsSpeak } from './agentState'
 import { requestApprovalViaRenderer, readHitlTimeoutMs } from './hitl'
 
 // Epic C registrations: each ticket's module registers its implementations
@@ -113,6 +113,9 @@ async function handleAgentCommand(
 
   // Persist each tool outcome as its own `tool` message row as the loop runs
   // (insertion order = execution order, via rowid tie-break in the query).
+  // KIEO-042: the HITL layer already wrote the tool_execution_log row inside
+  // baseExecutor, so notify Activity/Dashboard views whether or not the
+  // message-row append below succeeds.
   const executor: typeof baseExecutor = async (req, ctx) => {
     const result = await baseExecutor(req, ctx)
     try {
@@ -127,6 +130,8 @@ async function handleAgentCommand(
         '[kieo] failed to persist tool message (turn continues):',
         persistErr instanceof Error ? persistErr.message : persistErr
       )
+    } finally {
+      broadcastToolLogsUpdated()
     }
     return result
   }

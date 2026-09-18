@@ -52,6 +52,17 @@ const kieoApi: KieoApi = {
   listMemoryFacts: () => ipcRenderer.invoke('memory-list'),
   updateMemoryFact: (id, fact) => ipcRenderer.invoke('memory-update', { id, fact }),
   deleteMemoryFact: (id) => ipcRenderer.invoke('memory-delete', { id }),
+  // KIEO-042 Activity/Dashboard.
+  listToolLogs: (filter) => ipcRenderer.invoke('tool-logs-list', filter ?? {}),
+  onToolLogsUpdated: (cb) => {
+    const listener = (): void => {
+      cb()
+    }
+    ipcRenderer.on('tool-logs-updated', listener)
+    return () => {
+      ipcRenderer.removeListener('tool-logs-updated', listener)
+    }
+  },
 
   // KIEO-030: ship resampled PCM to main for local transcription.
   transcribeAudio: (pcm, sampleRate) =>

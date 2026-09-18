@@ -6,6 +6,7 @@ import { createMainWindow } from './windows'
 import { registerTray } from './tray'
 import { registerHitlIpc } from './ipc/hitl'
 import { registerAgentIpc } from './ipc/agent'
+import { registerActivityIpc } from './ipc/activity'
 import { registerMemoryIpc } from './ipc/memory'
 import { registerSttIpc } from './ipc/stt'
 import { registerSettingsIpc } from './ipc/settings'
@@ -47,6 +48,7 @@ async function onReady(): Promise<void> {
 
   registerHitlIpc()
   registerAgentIpc()
+  registerActivityIpc()
   registerMemoryIpc()
   registerSttIpc()
   registerSettingsIpc()
