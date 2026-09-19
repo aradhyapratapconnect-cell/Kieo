@@ -2,7 +2,13 @@
 // This is the ONLY bridge between renderer and main. Renderer code must never
 // import or touch `electron` / `ipcRenderer` directly; it uses `window.kieo`.
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AgentState, HitlRequest, KieoApi, TtsSpeakPayload } from '../shared/types'
+import type {
+  AgentMessageDto,
+  AgentState,
+  HitlRequest,
+  KieoApi,
+  TtsSpeakPayload
+} from '../shared/types'
 
 const kieoApi: KieoApi = {
   // HITL approval channel (full duplex impl lands in KIEO-013 / KIEO-052).
@@ -20,6 +26,20 @@ const kieoApi: KieoApi = {
   },
   sendHitlResponse: (resp) => {
     ipcRenderer.send('hitl-response', resp)
+  },
+
+  // KIEO-050: finished-turn text for the home inline response.
+  onAgentMessage: (cb) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      payload: AgentMessageDto
+    ): void => {
+      cb(payload)
+    }
+    ipcRenderer.on('agent-message', listener)
+    return () => {
+      ipcRenderer.removeListener('agent-message', listener)
+    }
   },
 
   // KIEO-012: loop state transitions -> renderer Zustand store.

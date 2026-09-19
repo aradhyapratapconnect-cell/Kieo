@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { useAgentStore } from './store/useAgentStore'
 import CommandBar from './components/CommandBar'
+import HomeScreen from './components/HomeScreen'
 import WakeWordToggle from './components/WakeWordToggle'
 import ActivityView from './views/Activity'
 import DashboardView from './views/Dashboard'
@@ -84,15 +85,8 @@ export default function App(): JSX.Element {
           {view === 'dashboard' && <DashboardView />}
         </main>
       ) : (
-        /* Center wordmark — emptiness is intentional (spec 1.5). */
-        <main className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
-          <h1 className="font-display text-[40px] font-bold leading-[48px]">Kieo</h1>
-          <p className="text-[15px] text-text-secondary">
-            Scaffold online — Tailwind + tokens + Zustand store wired.
-          </p>
-          <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-text-muted">
-            Human-in-the-loop enabled · Local SQLite
-          </p>
+        <main className="flex-1 overflow-hidden">
+          <HomeScreen />
         </main>
       )}
 

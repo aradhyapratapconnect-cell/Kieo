@@ -1,7 +1,8 @@
 // src/store/useAgentStore.ts — Zustand store (KIEO-001, extended KIEO-032).
-// Placeholder state; extended with conversation/messages/HITL state in later tickets.
+// KIEO-050 adds the home inline response: the latest finished turn pushed
+// from main over 'agent-message' (text + error flag + conversation id).
 import { create } from 'zustand'
-import type { AgentState } from '../../shared/types'
+import type { AgentMessageDto, AgentState } from '../../shared/types'
 import { isWakeEnabled } from '../voice/wakeword'
 
 export type WakePhase = 'off' | 'spotting' | 'command'
@@ -18,6 +19,10 @@ interface AgentStore {
   /** Latest wake notice/confirmation microcopy (null = nothing to show). */
   wakeNote: string | null
   setWakeNote: (note: string | null) => void
+  /** KIEO-050: latest finished turn for the home inline response. */
+  lastMessage: AgentMessageDto | null
+  setLastMessage: (msg: AgentMessageDto) => void
+  clearLastMessage: () => void
 }
 
 export const useAgentStore = create<AgentStore>((set) => ({
@@ -28,5 +33,8 @@ export const useAgentStore = create<AgentStore>((set) => ({
   wakePhase: 'off',
   setWakePhase: (wakePhase) => set({ wakePhase }),
   wakeNote: null,
-  setWakeNote: (wakeNote) => set({ wakeNote })
+  setWakeNote: (wakeNote) => set({ wakeNote }),
+  lastMessage: null,
+  setLastMessage: (lastMessage) => set({ lastMessage }),
+  clearLastMessage: () => set({ lastMessage: null })
 }))

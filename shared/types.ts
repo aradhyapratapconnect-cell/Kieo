@@ -79,6 +79,13 @@ export interface ToolLogsFilter {
   limit?: number
 }
 
+/** KIEO-050: assistant turn result pushed to the home inline response. */
+export interface AgentMessageDto {
+  conversationId: string | null
+  text: string
+  isError: boolean
+}
+
 /** Clamp + validate a renderer-supplied filter (shared by main + tests). */
 export function normalizeToolLogsFilter(
   raw?: Partial<ToolLogsFilter> | null
@@ -123,6 +130,8 @@ export interface KieoApi {
   /** KIEO-042 Activity/Dashboard: chronological tool history + live updates. */
   listToolLogs: (filter?: ToolLogsFilter) => Promise<ToolExecutionLogDto[]>
   onToolLogsUpdated: (cb: () => void) => () => void
+  /** KIEO-050 inline home response: one push per finished turn (or failure). */
+  onAgentMessage: (cb: (msg: AgentMessageDto) => void) => () => void
   /** KIEO-012: loop state transitions for the Zustand store. */
   onAgentState: (cb: (state: AgentState) => void) => () => void
   /** KIEO-030: ship resampled PCM to main for local transcription. */

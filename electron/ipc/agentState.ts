@@ -5,7 +5,7 @@
 // Kept in its own module so electron/ipc/agent.ts and electron/ipc/hitl.ts
 // can both use it without an import cycle.
 import type { BrowserWindow } from 'electron'
-import type { AgentState, TtsSpeakPayload } from '../../shared/types'
+import type { AgentMessageDto, AgentState, TtsSpeakPayload } from '../../shared/types'
 
 let agentWindow: BrowserWindow | null = null
 
@@ -48,5 +48,18 @@ export function broadcastToolLogsUpdated(): void {
     getAgentWindow()?.webContents.send('tool-logs-updated')
   } catch (err) {
     console.error('[kieo] failed to broadcast tool log update:', err)
+  }
+}
+
+/**
+ * KIEO-050: push one turn result to the home inline response. Fire-and-
+ * forget like the other broadcasts — the DB row is the source of truth,
+ * this is only the display hint. Never throws.
+ */
+export function broadcastAgentMessage(msg: AgentMessageDto): void {
+  try {
+    getAgentWindow()?.webContents.send('agent-message', msg)
+  } catch (err) {
+    console.error('[kieo] failed to broadcast agent message:', err)
   }
 }

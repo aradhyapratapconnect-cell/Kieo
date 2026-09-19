@@ -41,7 +41,12 @@ import {
 } from '../../agent-core/voice/tts'
 import { join } from 'node:path'
 import { app } from 'electron'
-import { broadcastAgentState, broadcastToolLogsUpdated, broadcastTtsSpeak } from './agentState'
+import {
+  broadcastAgentMessage,
+  broadcastAgentState,
+  broadcastToolLogsUpdated,
+  broadcastTtsSpeak
+} from './agentState'
 import { requestApprovalViaRenderer, readHitlTimeoutMs } from './hitl'
 
 // Epic C registrations: each ticket's module registers its implementations
@@ -96,6 +101,8 @@ async function handleAgentCommand(
       '[kieo] command failed before the LLM call:',
       err instanceof Error ? err.message : err
     )
+    // KIEO-050: surface failures inline on home (Error Handling Guide).
+    broadcastAgentMessage({ conversationId: conv.id, text: message, isError: true })
     return conv.id
   }
 
@@ -152,6 +159,8 @@ async function handleAgentCommand(
       input: t.input
     }))
     finalizeAssistantMessage(db, conv.id, assistantMsg.id, result.text, toolCalls)
+    // KIEO-050: inline home response (no view change for simple Q&A).
+    broadcastAgentMessage({ conversationId: conv.id, text: result.text, isError: false })
     // KIEO-041: mine USER text only (never assistant/tool output) for durable
     // facts. Best-effort — extraction must never break the turn.
     try {
@@ -178,7 +187,6 @@ async function handleAgentCommand(
   } catch (err) {
     // Loop-level failures (LLM down, max steps): persist the message so the
     // turn stays visible in history; partial tool rows already landed above.
-    // KIEO-050 will voice/show these per the guide.
     const message = err instanceof Error ? err.message : String(err)
     try {
       finalizeAssistantMessage(db, conv.id, assistantMsg.id, message, null)
@@ -189,6 +197,8 @@ async function handleAgentCommand(
       '[kieo] command failed:',
       err instanceof Error ? err.message : err
     )
+    // KIEO-050: surface failures inline on home (Error Handling Guide).
+    broadcastAgentMessage({ conversationId: conv.id, text: message, isError: true })
     return conv.id
   }
   return conv.id

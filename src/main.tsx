@@ -36,6 +36,11 @@ const forwardAgentState = (state: AgentState): void => {
 }
 window.kieo?.onAgentState(forwardAgentState)
 
+// KIEO-050: finished-turn text for the home inline response (no view change).
+window.kieo?.onAgentMessage((msg) => {
+  useAgentStore.getState().setLastMessage(msg)
+})
+
 // KIEO-031: synthesized speech playback. SPEAKING shows while audio plays;
 // the store reverts only from SPEAKING so a concurrent loop state is never
 // clobbered.
