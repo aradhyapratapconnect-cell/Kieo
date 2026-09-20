@@ -5,6 +5,7 @@
 import { useState } from 'react'
 import { useAgentStore } from './store/useAgentStore'
 import CommandBar from './components/CommandBar'
+import { ConfirmationOverlay } from './components/ConfirmationCard'
 import HomeScreen from './components/HomeScreen'
 import Sidebar from './components/Sidebar'
 import WakeWordToggle from './components/WakeWordToggle'
@@ -112,6 +113,9 @@ export default function App(): JSX.Element {
         )}
         <CommandBar />
       </footer>
+
+      {/* KIEO-052: HITL approval overlay — full-view, above every screen. */}
+      <ConfirmationOverlay />
     </div>
   )
 }
