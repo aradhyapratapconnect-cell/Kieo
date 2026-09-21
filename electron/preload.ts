@@ -72,6 +72,19 @@ const kieoApi: KieoApi = {
   listMemoryFacts: () => ipcRenderer.invoke('memory-list'),
   updateMemoryFact: (id, fact) => ipcRenderer.invoke('memory-update', { id, fact }),
   deleteMemoryFact: (id) => ipcRenderer.invoke('memory-delete', { id }),
+  // KIEO-053 Settings.
+  listPermissions: () => ipcRenderer.invoke('permissions-list'),
+  setPermission: (actionType, level) =>
+    ipcRenderer.invoke('permissions-set', { actionType, level }),
+  describeProviders: () => ipcRenderer.invoke('providers-describe'),
+  setActiveProvider: (providerId) =>
+    ipcRenderer.invoke('providers-set-active', { providerId }),
+  setProviderModel: (providerId, model) =>
+    ipcRenderer.invoke('providers-set-model', { providerId, model }),
+  saveProviderKey: (providerId, key) =>
+    ipcRenderer.invoke('providers-save-key', { providerId, key }),
+  deleteProviderKey: (providerId) =>
+    ipcRenderer.invoke('providers-delete-key', { providerId }),
   // KIEO-042 Activity/Dashboard.
   listToolLogs: (filter) => ipcRenderer.invoke('tool-logs-list', filter ?? {}),
   onToolLogsUpdated: (cb) => {

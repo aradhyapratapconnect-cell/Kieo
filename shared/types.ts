@@ -86,6 +86,29 @@ export interface AgentMessageDto {
   isError: boolean
 }
 
+/** KIEO-053 Settings: one permission row (level + whether it is the default). */
+export interface PermissionStateDto {
+  actionType: string
+  level: PermissionLevel
+  isDefault: boolean
+}
+
+/** KIEO-053 Settings: provider snapshot — flags only, never key material. */
+export interface ProviderStateDto {
+  id: string
+  label: string
+  defaultModel: string
+  activeModel: string
+  hasModelOverride: boolean
+  keySaved: boolean
+  isActive: boolean
+}
+
+export interface ProvidersSnapshotDto {
+  activeProviderId: string
+  providers: ProviderStateDto[]
+}
+
 /** Clamp + validate a renderer-supplied filter (shared by main + tests). */
 export function normalizeToolLogsFilter(
   raw?: Partial<ToolLogsFilter> | null
@@ -132,6 +155,26 @@ export interface KieoApi {
   onToolLogsUpdated: (cb: () => void) => () => void
   /** KIEO-050 inline home response: one push per finished turn (or failure). */
   onAgentMessage: (cb: (msg: AgentMessageDto) => void) => () => void
+  /** KIEO-053 Settings: permissions (backed by the permissions table). */
+  listPermissions: () => Promise<PermissionStateDto[]>
+  setPermission: (
+    actionType: string,
+    level: PermissionLevel
+  ) => Promise<{ ok: boolean; revoked?: string[]; error?: string }>
+  /** KIEO-053 Settings: providers, models, and keychain-backed keys. */
+  describeProviders: () => Promise<ProvidersSnapshotDto>
+  setActiveProvider: (providerId: string) => Promise<{ ok: boolean; error?: string }>
+  setProviderModel: (
+    providerId: string,
+    model: string
+  ) => Promise<{ ok: boolean; activeModel?: string; error?: string }>
+  saveProviderKey: (
+    providerId: string,
+    key: string
+  ) => Promise<{ ok: boolean; error?: string }>
+  deleteProviderKey: (
+    providerId: string
+  ) => Promise<{ ok: boolean; deleted?: boolean; error?: string }>
   /** KIEO-012: loop state transitions for the Zustand store. */
   onAgentState: (cb: (state: AgentState) => void) => () => void
   /** KIEO-030: ship resampled PCM to main for local transcription. */
