@@ -2,11 +2,12 @@
 // KIEO-051 owns the navigation shell: distraction-free home (no sidebar,
 // quick links in the top bar) + persistent left sidebar on every other view.
 // Full Conversations/Settings bodies land in KIEO-054/053.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAgentStore } from './store/useAgentStore'
 import CommandBar from './components/CommandBar'
 import { ConfirmationOverlay } from './components/ConfirmationCard'
 import HomeScreen from './components/HomeScreen'
+import OnboardingGuide from './components/OnboardingGuide'
 import Sidebar from './components/Sidebar'
 import WakeWordToggle from './components/WakeWordToggle'
 import { NAV_ITEMS, isSidebarVisible, type ViewId } from './components/nav'
@@ -23,6 +24,30 @@ export default function App(): JSX.Element {
   const wakeNote = useAgentStore((s) => s.wakeNote)
   const [view, setView] = useState<ViewId>('home')
   const autonomyEnabled = useAgentStore((s) => s.autonomyEnabled)
+  const guideOpen = useAgentStore((s) => s.guideOpen)
+  const setGuideOpen = useAgentStore((s) => s.setGuideOpen)
+
+  // KIEO-064: first launch opens the guide automatically (flag absent means
+  // unseen). Dismissal persists so it never reopens on its own.
+  useEffect(() => {
+    let cancelled = false
+    window.kieo
+      ?.getSettings()
+      .then((settings) => {
+        if (!cancelled && settings['onboarding_seen'] !== true) {
+          setGuideOpen(true)
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [setGuideOpen])
+
+  function dismissGuide(): void {
+    setGuideOpen(false)
+    window.kieo?.setSetting('onboarding_seen', true).catch(() => undefined)
+  }
 
   return (
     <div className="flex h-full flex-col bg-bg-base text-text-primary">
@@ -127,6 +152,8 @@ export default function App(): JSX.Element {
 
       {/* KIEO-052: HITL approval overlay — full-view, above every screen. */}
       <ConfirmationOverlay />
+      {/* KIEO-064: first-run guide (below the approval card by z-order). */}
+      {guideOpen && <OnboardingGuide onClose={dismissGuide} />}
     </div>
   )
 }

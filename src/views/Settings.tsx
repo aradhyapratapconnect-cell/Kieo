@@ -46,6 +46,7 @@ export default function SettingsView(): JSX.Element {
   const [autonomy, setAutonomy] = useState<AutonomySnapshotDto | null>(null)
   const [ttsEnabled, setTtsEnabled] = useState<boolean | null>(null)
   const setAutonomyBadge = useAgentStore((s) => s.setAutonomyEnabled)
+  const setGuideOpen = useAgentStore((s) => s.setGuideOpen)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busyAction, setBusyAction] = useState<string | null>(null)
@@ -298,13 +299,23 @@ export default function SettingsView(): JSX.Element {
     <div className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 py-6 text-left">
       <div className="flex items-baseline justify-between">
         <h2 className="font-display text-[20px] font-semibold leading-[28px]">Settings</h2>
-        <button
-          type="button"
-          onClick={() => load()}
-          className="rounded border border-white/10 bg-surface-elevated/80 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary hover:text-text-primary"
-        >
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          {/* KIEO-064: on-demand replay of the first-run guide. */}
+          <button
+            type="button"
+            onClick={() => setGuideOpen(true)}
+            className="rounded border border-white/10 bg-surface-elevated/80 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary hover:text-text-primary"
+          >
+            How to Use
+          </button>
+          <button
+            type="button"
+            onClick={() => load()}
+            className="rounded border border-white/10 bg-surface-elevated/80 px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary hover:text-text-primary"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error !== null && (

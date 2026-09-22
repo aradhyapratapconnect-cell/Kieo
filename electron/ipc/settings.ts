@@ -27,10 +27,13 @@ import {
   setAutonomousScope
 } from '../../agent-core/autonomous'
 import {
+  SETTING_ONBOARDING_SEEN,
   SettingsModelError,
   describeProviders,
+  hasSeenOnboarding,
   isTtsEnabled,
   listPermissionStates,
+  markOnboardingSeen,
   setActiveProvider,
   setPermissionLevel,
   setProviderModel,
@@ -51,16 +54,29 @@ export function registerSettingsIpc(): void {
   // secrets; secrets live exclusively in the key store).
   ipcMain.handle('settings-get', async () => {
     const db = getDatabase()
-    return { [SETTING_TTS_ENABLED]: isTtsEnabled(db) }
+    return {
+      [SETTING_TTS_ENABLED]: isTtsEnabled(db),
+      [SETTING_ONBOARDING_SEEN]: hasSeenOnboarding(db)
+    }
   })
   ipcMain.handle(
     'settings-set',
     async (_event, payload: { key?: unknown; value?: unknown }) => {
-      if (payload?.key !== SETTING_TTS_ENABLED || typeof payload?.value !== 'boolean') {
+      if (typeof payload?.value !== 'boolean') {
         return { ok: false as const }
       }
-      setTtsEnabled(getDatabase(), payload.value)
-      return { ok: true as const }
+      const db = getDatabase()
+      if (payload?.key === SETTING_TTS_ENABLED) {
+        setTtsEnabled(db, payload.value)
+        return { ok: true as const }
+      }
+      // KIEO-064: first-launch guide flag. Replay from Settings opens the
+      // overlay directly without touching this flag.
+      if (payload?.key === SETTING_ONBOARDING_SEEN && payload.value === true) {
+        markOnboardingSeen(db)
+        return { ok: true as const }
+      }
+      return { ok: false as const }
     }
   )
 

@@ -206,3 +206,17 @@ export function setTtsEnabled(db: DatabaseHandle, enabled: boolean): boolean {
   setSetting(db, SETTING_TTS_ENABLED, enabled)
   return enabled
 }
+
+// ---------------------------------------------------------------------------
+// Onboarding (KIEO-064): first-launch guide flag. Absent means unseen.
+// ---------------------------------------------------------------------------
+
+export const SETTING_ONBOARDING_SEEN = 'onboarding_seen'
+
+export function hasSeenOnboarding(db: DatabaseHandle): boolean {
+  return getSetting<boolean>(db, SETTING_ONBOARDING_SEEN) === true
+}
+
+export function markOnboardingSeen(db: DatabaseHandle): void {
+  setSetting(db, SETTING_ONBOARDING_SEEN, true)
+}

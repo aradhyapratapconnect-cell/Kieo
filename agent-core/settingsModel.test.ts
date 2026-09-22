@@ -15,8 +15,10 @@ import {
   SettingsModelError,
   describeProviders,
   getActiveProviderId,
+  hasSeenOnboarding,
   isTtsEnabled,
   listPermissionStates,
+  markOnboardingSeen,
   setActiveProvider,
   setPermissionLevel,
   setProviderModel,
@@ -134,6 +136,15 @@ describe('KIEO-053 providers (AC2: keys never exposed)', () => {
     const serialized = JSON.stringify(providers)
     expect(serialized).not.toContain(SECRET)
     expect(serialized).not.toContain('sk-super')
+  })
+})
+
+describe('KIEO-064 onboarding flag (unseen by default)', () => {
+  it('absent means first launch; marking persists', () => {
+    const db = tempDb()
+    expect(hasSeenOnboarding(db)).toBe(false)
+    markOnboardingSeen(db)
+    expect(hasSeenOnboarding(db)).toBe(true)
   })
 })
 

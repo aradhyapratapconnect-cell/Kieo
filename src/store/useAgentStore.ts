@@ -26,6 +26,9 @@ interface AgentStore {
   /** KIEO-060: session autonomy armed (always false on launch). Drives the header badge. */
   autonomyEnabled: boolean
   setAutonomyEnabled: (enabled: boolean) => void
+  /** KIEO-064: first-run guide overlay (auto-opens once, replayable from Settings). */
+  guideOpen: boolean
+  setGuideOpen: (open: boolean) => void
 }
 
 export const useAgentStore = create<AgentStore>((set) => ({
@@ -41,5 +44,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   setLastMessage: (lastMessage) => set({ lastMessage }),
   clearLastMessage: () => set({ lastMessage: null }),
   autonomyEnabled: false,
-  setAutonomyEnabled: (autonomyEnabled) => set({ autonomyEnabled })
+  setAutonomyEnabled: (autonomyEnabled) => set({ autonomyEnabled }),
+  guideOpen: false,
+  setGuideOpen: (guideOpen) => set({ guideOpen })
 }))
