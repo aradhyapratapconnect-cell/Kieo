@@ -189,6 +189,23 @@ export interface KieoApi {
   deleteProviderKey: (
     providerId: string
   ) => Promise<{ ok: boolean; deleted?: boolean; error?: string }>
+  /** KIEO-061 cloud sync (opt-in; disabled/signed-out by default). */
+  getSyncStatus: () => Promise<{
+    signedIn: boolean
+    userId: string | null
+    email: string | null
+    urlConfigured: boolean
+  }>
+  getSyncConfig: () => Promise<{ url: string | null }>
+  setSyncConfig: (url: string, anonKey?: string) => Promise<{ ok: boolean; url?: string | null; error?: string }>
+  syncSignIn: (email: string, password: string) => Promise<{ ok: boolean; userId?: string; email?: string | null; error?: string }>
+  syncSignOut: () => Promise<{ ok: boolean }>
+  syncNow: () => Promise<{
+    ok: boolean
+    pushed?: { settings: number; permissions: number; facts: number }
+    pulled?: { settings: number; permissions: number; facts: number }
+    error?: string
+  }>
   /** KIEO-060 autonomous mode (experimental, session-scoped). */
   getAutonomy: () => Promise<AutonomySnapshotDto>
   setAutonomyEnabled: (enabled: boolean) => Promise<{ ok: boolean; enabled?: boolean; error?: string }>

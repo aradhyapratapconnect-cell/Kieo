@@ -85,6 +85,13 @@ const kieoApi: KieoApi = {
     ipcRenderer.invoke('providers-save-key', { providerId, key }),
   deleteProviderKey: (providerId) =>
     ipcRenderer.invoke('providers-delete-key', { providerId }),
+  // KIEO-061 cloud sync (opt-in).
+  getSyncStatus: () => ipcRenderer.invoke('sync-status'),
+  getSyncConfig: () => ipcRenderer.invoke('sync-config-get'),
+  setSyncConfig: (url, anonKey) => ipcRenderer.invoke('sync-config-set', { url, anonKey }),
+  syncSignIn: (email, password) => ipcRenderer.invoke('sync-signin', { email, password }),
+  syncSignOut: () => ipcRenderer.invoke('sync-signout'),
+  syncNow: () => ipcRenderer.invoke('sync-now'),
   // KIEO-060 autonomous mode.
   getAutonomy: () => ipcRenderer.invoke('autonomy-get'),
   setAutonomyEnabled: (enabled) => ipcRenderer.invoke('autonomy-set-enabled', { enabled }),

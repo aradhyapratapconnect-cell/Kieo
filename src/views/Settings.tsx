@@ -13,6 +13,7 @@ import type {
 } from '../../shared/types'
 import { useAgentStore } from '../store/useAgentStore'
 import WakeWordToggle from '../components/WakeWordToggle'
+import CloudSyncSection from './CloudSyncSection'
 
 const LEVEL_OPTIONS: Array<{ value: PermissionLevel; label: string }> = [
   { value: 'always_allow', label: 'Always Allow' },
@@ -410,6 +411,18 @@ export default function SettingsView(): JSX.Element {
                 Scope persists · arming does not — re-arm after every restart
               </p>
             </div>
+          </Section>
+
+          <Section
+            title="Cloud Sync (experimental)"
+            blurb="Optional Supabase sync across machines. The app works fully without it."
+          >
+            <CloudSyncSection
+              notify={(kind, text) => {
+                if (kind === 'error') setError(text)
+                else setNotice(text)
+              }}
+            />
           </Section>
 
           <Section

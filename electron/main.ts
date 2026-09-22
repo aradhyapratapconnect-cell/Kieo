@@ -8,6 +8,7 @@ import { registerHitlIpc } from './ipc/hitl'
 import { registerAgentIpc } from './ipc/agent'
 import { registerActivityIpc } from './ipc/activity'
 import { registerMemoryIpc } from './ipc/memory'
+import { registerSyncIpc } from './ipc/sync'
 import { registerSttIpc } from './ipc/stt'
 import { registerSettingsIpc } from './ipc/settings'
 import { setAgentWindow } from './ipc/agentState'
@@ -50,6 +51,7 @@ async function onReady(): Promise<void> {
   registerAgentIpc()
   registerActivityIpc()
   registerMemoryIpc()
+  registerSyncIpc()
   registerSttIpc()
   registerSettingsIpc()
 
