@@ -10,6 +10,11 @@ export default defineConfig({
     build: {
       lib: {
         entry: 'electron/main.ts'
+      },
+      rollupOptions: {
+        // KIEO-061: optional peer — resolved at sign-in time, never bundled.
+        // Absent package rejects at runtime into a typed not-installed error.
+        external: ['@supabase/supabase-js']
       }
     }
   },

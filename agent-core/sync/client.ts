@@ -49,8 +49,10 @@ export type SupabaseImporter = () => Promise<{ createClient: unknown }>
 /** Default loader: dynamic import so the dependency stays optional. */
 export async function defaultImporter(): Promise<{ createClient: unknown }> {
   try {
-    // @ts-ignore — optional peer dependency; typed as unknown below.
-    const mod = await import('@supabase/supabase-js')
+    // @ts-ignore — optional peer dependency, typed as unknown below.
+    // @vite-ignore keeps Rollup from resolving it at build time: with the
+    // package uninstalled the runtime import rejects into not-installed.
+    const mod = await import(/* @vite-ignore */ '@supabase/supabase-js')
     return mod as { createClient: unknown }
   } catch {
     throw new SyncClientError(
