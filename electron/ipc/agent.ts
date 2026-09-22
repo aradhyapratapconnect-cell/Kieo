@@ -31,6 +31,7 @@ import { registerShellTools } from '../../agent-core/tools/shell'
 import { registerAppTools } from '../../agent-core/tools/apps'
 import { registerEmailTools } from '../../agent-core/tools/email'
 import { registerGitHubTools } from '../../agent-core/tools/github'
+import { applyAutonomy, getAutonomousScope, isAutonomousEnabled } from '../../agent-core/autonomous'
 import { createHitlExecutor } from '../../agent-core/hitl'
 import { resolvePermissionPolicy } from '../../agent-core/permissions'
 import { runAgentLoop } from '../../agent-core/loop'
@@ -114,7 +115,14 @@ async function handleAgentCommand(
     executeTool: (toolName, input) => toolDispatcher.execute(toolName, input),
     // KIEO-014: read fresh from the permissions table on every call — a
     // Settings change applies to the very next matching tool call.
-    resolvePolicy: (ctx) => resolvePermissionPolicy(db, ctx),
+    // KIEO-060: session autonomy upgrades ask→allow inside the armed scope;
+    // the base policy composes first so never_allow always wins regardless.
+    resolvePolicy: (ctx) =>
+      applyAutonomy(
+        resolvePermissionPolicy(db, ctx),
+        isAutonomousEnabled(),
+        getAutonomousScope(db).includes(ctx.permissionActionType)
+      ),
     timeoutMs: readHitlTimeoutMs()
   })
 

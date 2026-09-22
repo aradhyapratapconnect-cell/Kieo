@@ -22,6 +22,7 @@ export default function App(): JSX.Element {
   const wakePhase = useAgentStore((s) => s.wakePhase)
   const wakeNote = useAgentStore((s) => s.wakeNote)
   const [view, setView] = useState<ViewId>('home')
+  const autonomyEnabled = useAgentStore((s) => s.autonomyEnabled)
 
   return (
     <div className="flex h-full flex-col bg-bg-base text-text-primary">
@@ -35,6 +36,16 @@ export default function App(): JSX.Element {
           <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-text-muted">
             · {agentState}
           </span>
+          {/* KIEO-060: unmissable while session autonomy is armed. */}
+          {autonomyEnabled && (
+            <span
+              role="status"
+              title="Autonomous mode armed — in-scope actions run without asking"
+              className="rounded border border-caution/60 bg-caution/10 px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.06em] text-caution"
+            >
+              Auto
+            </span>
+          )}
           {/* KIEO-032: visible wake indicator — never silent activation. */}
           {wakeEnabled && wakePhase !== 'off' && (
             <>

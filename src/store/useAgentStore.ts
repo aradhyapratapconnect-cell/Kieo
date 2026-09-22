@@ -23,6 +23,9 @@ interface AgentStore {
   lastMessage: AgentMessageDto | null
   setLastMessage: (msg: AgentMessageDto) => void
   clearLastMessage: () => void
+  /** KIEO-060: session autonomy armed (always false on launch). Drives the header badge. */
+  autonomyEnabled: boolean
+  setAutonomyEnabled: (enabled: boolean) => void
 }
 
 export const useAgentStore = create<AgentStore>((set) => ({
@@ -36,5 +39,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   setWakeNote: (wakeNote) => set({ wakeNote }),
   lastMessage: null,
   setLastMessage: (lastMessage) => set({ lastMessage }),
-  clearLastMessage: () => set({ lastMessage: null })
+  clearLastMessage: () => set({ lastMessage: null }),
+  autonomyEnabled: false,
+  setAutonomyEnabled: (autonomyEnabled) => set({ autonomyEnabled })
 }))

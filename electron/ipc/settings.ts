@@ -19,6 +19,14 @@ import {
   type ProviderId
 } from '../../agent-core/llm/provider'
 import {
+  AutonomousModelError,
+  getAutonomousScope,
+  isAutonomousEnabled,
+  listAutonomousActions,
+  setAutonomousEnabled,
+  setAutonomousScope
+} from '../../agent-core/autonomous'
+import {
   SettingsModelError,
   describeProviders,
   isTtsEnabled,
@@ -158,4 +166,34 @@ export function registerSettingsIpc(): void {
       }
     }
   )
+
+  // KIEO-060 autonomous mode: session arming + persisted scope. The enabled
+  // flag is intentionally NOT stored — every launch starts disarmed.
+  ipcMain.handle('autonomy-get', async () => {
+    const db = getDatabase()
+    return {
+      enabled: isAutonomousEnabled(),
+      scope: getAutonomousScope(db),
+      actions: listAutonomousActions(db, toolRegistry)
+    }
+  })
+  ipcMain.handle('autonomy-set-enabled', async (_event, payload: { enabled?: unknown }) => {
+    if (typeof payload?.enabled !== 'boolean') {
+      return { ok: false as const, error: 'enabled must be a boolean.' }
+    }
+    const enabled = setAutonomousEnabled(payload.enabled)
+    return { ok: true as const, enabled }
+  })
+  ipcMain.handle('autonomy-set-scope', async (_event, payload: { actions?: unknown }) => {
+    if (!Array.isArray(payload?.actions) || !payload.actions.every((a) => typeof a === 'string')) {
+      return { ok: false as const, error: 'actions must be an array of action-type strings.' }
+    }
+    try {
+      const scope = setAutonomousScope(getDatabase(), toolRegistry, payload.actions as string[])
+      return { ok: true as const, scope }
+    } catch (err) {
+      if (err instanceof AutonomousModelError) return modelErrorPayload(err)
+      throw err
+    }
+  })
 }

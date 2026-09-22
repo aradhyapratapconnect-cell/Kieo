@@ -85,6 +85,10 @@ const kieoApi: KieoApi = {
     ipcRenderer.invoke('providers-save-key', { providerId, key }),
   deleteProviderKey: (providerId) =>
     ipcRenderer.invoke('providers-delete-key', { providerId }),
+  // KIEO-060 autonomous mode.
+  getAutonomy: () => ipcRenderer.invoke('autonomy-get'),
+  setAutonomyEnabled: (enabled) => ipcRenderer.invoke('autonomy-set-enabled', { enabled }),
+  setAutonomyScope: (actions) => ipcRenderer.invoke('autonomy-set-scope', { actions }),
   // KIEO-042 Activity/Dashboard.
   listToolLogs: (filter) => ipcRenderer.invoke('tool-logs-list', filter ?? {}),
   onToolLogsUpdated: (cb) => {

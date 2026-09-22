@@ -109,6 +109,20 @@ export interface ProvidersSnapshotDto {
   providers: ProviderStateDto[]
 }
 
+/** KIEO-060 autonomous mode: session arming + per-action scope. */
+export interface AutonomousActionDto {
+  actionType: string
+  classification: ToolClassification
+  inScope: boolean
+}
+
+export interface AutonomySnapshotDto {
+  /** Session-only: always false on fresh launch by construction. */
+  enabled: boolean
+  scope: string[]
+  actions: AutonomousActionDto[]
+}
+
 /** Clamp + validate a renderer-supplied filter (shared by main + tests). */
 export function normalizeToolLogsFilter(
   raw?: Partial<ToolLogsFilter> | null
@@ -175,6 +189,10 @@ export interface KieoApi {
   deleteProviderKey: (
     providerId: string
   ) => Promise<{ ok: boolean; deleted?: boolean; error?: string }>
+  /** KIEO-060 autonomous mode (experimental, session-scoped). */
+  getAutonomy: () => Promise<AutonomySnapshotDto>
+  setAutonomyEnabled: (enabled: boolean) => Promise<{ ok: boolean; enabled?: boolean; error?: string }>
+  setAutonomyScope: (actions: string[]) => Promise<{ ok: boolean; scope?: string[]; error?: string }>
   /** KIEO-012: loop state transitions for the Zustand store. */
   onAgentState: (cb: (state: AgentState) => void) => () => void
   /** KIEO-030: ship resampled PCM to main for local transcription. */

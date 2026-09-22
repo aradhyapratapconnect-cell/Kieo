@@ -6,10 +6,12 @@
 // are never displayed, and inputs clear after saving.
 import { useCallback, useEffect, useState } from 'react'
 import type {
+  AutonomySnapshotDto,
   PermissionLevel,
   PermissionStateDto,
   ProvidersSnapshotDto
 } from '../../shared/types'
+import { useAgentStore } from '../store/useAgentStore'
 import WakeWordToggle from '../components/WakeWordToggle'
 
 const LEVEL_OPTIONS: Array<{ value: PermissionLevel; label: string }> = [
@@ -39,7 +41,9 @@ function Section({
 export default function SettingsView(): JSX.Element {
   const [permissions, setPermissions] = useState<PermissionStateDto[] | null>(null)
   const [providers, setProviders] = useState<ProvidersSnapshotDto | null>(null)
+  const [autonomy, setAutonomy] = useState<AutonomySnapshotDto | null>(null)
   const [ttsEnabled, setTtsEnabled] = useState<boolean | null>(null)
+  const setAutonomyBadge = useAgentStore((s) => s.setAutonomyEnabled)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busyAction, setBusyAction] = useState<string | null>(null)
@@ -53,6 +57,7 @@ export default function SettingsView(): JSX.Element {
       setError('Settings unavailable outside the desktop app.')
       setPermissions([])
       setProviders(null)
+      setAutonomy(null)
       setTtsEnabled(null)
       return
     }
@@ -80,7 +85,17 @@ export default function SettingsView(): JSX.Element {
       (settings) => setTtsEnabled(settings['tts_enabled'] !== false),
       () => setTtsEnabled(true)
     )
-  }, [])
+    api.getAutonomy().then(
+      (snap) => {
+        setAutonomy(snap)
+        setAutonomyBadge(snap.enabled)
+      },
+      (err) => {
+        setError(err instanceof Error ? err.message : String(err))
+        setAutonomy(null)
+      }
+    )
+  }, [setAutonomyBadge])
 
   useEffect(() => {
     load()
@@ -207,6 +222,62 @@ export default function SettingsView(): JSX.Element {
     }
   }
 
+  async function toggleAutonomy(enabled: boolean): Promise<void> {
+    setBusyAction('autonomy')
+    setError(null)
+    setNotice(null)
+    try {
+      const res = await window.kieo.setAutonomyEnabled(enabled)
+      if (!res.ok) {
+        setError(res.error ?? 'Could not change autonomous mode — try again.')
+        return
+      }
+      setAutonomy((prev) => (prev ? { ...prev, enabled: res.enabled ?? enabled } : prev))
+      setAutonomyBadge(res.enabled ?? enabled)
+      setNotice(
+        enabled
+          ? 'Autonomous mode ARMED for this session only — in-scope actions run without asking.'
+          : 'Autonomous mode off — every mutating action asks again.'
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function toggleScopeAction(actionType: string, inScope: boolean): Promise<void> {
+    const current = autonomy?.scope ?? []
+    const next = inScope
+      ? [...current, actionType]
+      : current.filter((a) => a !== actionType)
+    setBusyAction(`scope:${actionType}`)
+    setError(null)
+    try {
+      const res = await window.kieo.setAutonomyScope(next)
+      if (!res.ok) {
+        setError(res.error ?? 'Could not save the scope — try again.')
+        return
+      }
+      const scope = res.scope ?? next
+      setAutonomy((prev) =>
+        prev
+          ? {
+              ...prev,
+              scope,
+              actions: prev.actions.map((a) =>
+                a.actionType === actionType ? { ...a, inScope } : a
+              )
+            }
+          : prev
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   async function toggleTts(enabled: boolean): Promise<void> {
     setTtsEnabled(enabled)
     setError(null)
@@ -218,7 +289,8 @@ export default function SettingsView(): JSX.Element {
     }
   }
 
-  const loading = permissions === null || providers === null || ttsEnabled === null
+  const loading =
+    permissions === null || providers === null || autonomy === null || ttsEnabled === null
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 py-6 text-left">
@@ -288,6 +360,56 @@ export default function SettingsView(): JSX.Element {
                 </li>
               ))}
             </ul>
+          </Section>
+
+          <Section
+            title="Autonomous Mode (experimental)"
+            blurb="Session-only auto-run for in-scope dangerous actions — no confirmation cards while armed. Disarms on every restart; Never Allow always wins, and everything is still logged."
+          >
+            <div
+              className={`flex flex-col gap-2 rounded border px-3 py-2 backdrop-blur-[16px] ${
+                autonomy?.enabled
+                  ? 'border-caution/60 bg-caution/10'
+                  : 'border-white/[0.07] bg-surface/65'
+              }`}
+            >
+              <label className="flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={autonomy?.enabled ?? false}
+                  disabled={busyAction === 'autonomy'}
+                  onChange={(e) => void toggleAutonomy(e.target.checked)}
+                  className="h-4 w-4 accent-[#F59E0B]"
+                />
+                <span className="text-[14px] font-semibold text-text-primary">
+                  Arm for this session
+                </span>
+              </label>
+              {(autonomy?.actions ?? []).map((action) => (
+                <label
+                  key={action.actionType}
+                  className="flex cursor-pointer items-center justify-between gap-3 rounded border border-white/[0.07] bg-bg-base px-2 py-1"
+                >
+                  <span className="min-w-0 break-all font-mono text-[12px] text-text-secondary">
+                    {action.actionType}
+                    <span className="ml-2 text-[11px] uppercase text-text-muted">
+                      {action.classification}
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={action.inScope}
+                    disabled={busyAction === `scope:${action.actionType}`}
+                    onChange={(e) => void toggleScopeAction(action.actionType, e.target.checked)}
+                    aria-label={`Include ${action.actionType} in autonomous scope`}
+                    className="h-4 w-4 shrink-0 accent-[#F59E0B] disabled:opacity-50"
+                  />
+                </label>
+              ))}
+              <p className="font-mono text-[11px] uppercase tracking-[0.06em] text-text-muted">
+                Scope persists · arming does not — re-arm after every restart
+              </p>
+            </div>
           </Section>
 
           <Section
