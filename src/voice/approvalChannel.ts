@@ -57,6 +57,15 @@ export interface ApprovalChannelDeps {
   submitCommand: (text: string) => void
   onNotice?: (text: string) => void
   setWakePaused?: (paused: boolean) => void
+  /**
+   * KIEO-062 owner gate: when enabled, a spoken APPROVAL resolves only for
+   * the enrolled owner voice (verified against the just-captured clip).
+   * Denials stay ungated (safe direction — nothing runs), clicks are
+   * unaffected, and an unavailable verifier fails closed to the card.
+   * Absent (default): every spoken verdict resolves, as before.
+   */
+  isOwnerGateEnabled?: () => Promise<boolean>
+  verifySpeaker?: (audio: ApprovalAudio) => Promise<{ match: boolean } | null>
 }
 
 export interface ApprovalChannel {
@@ -69,6 +78,24 @@ export interface ApprovalChannel {
 export function createApprovalChannel(deps: ApprovalChannelDeps): ApprovalChannel {
   let activeId: string | null = null
   const queue: string[] = []
+
+  async function isOwnerGateOn(): Promise<boolean> {
+    try {
+      return (await deps.isOwnerGateEnabled?.()) ?? false
+    } catch {
+      return false
+    }
+  }
+
+  async function verifyOwner(clip: ApprovalAudio): Promise<'match' | 'mismatch' | 'unavailable'> {
+    try {
+      const verdict = await deps.verifySpeaker?.(clip)
+      if (!verdict) return 'unavailable'
+      return verdict.match ? 'match' : 'mismatch'
+    } catch {
+      return 'unavailable'
+    }
+  }
 
   async function listenOnce(id: string): Promise<void> {
     while (activeId === id) {
@@ -90,6 +117,22 @@ export function createApprovalChannel(deps: ApprovalChannelDeps): ApprovalChanne
       if (!t.ok || t.transcript.trim().length === 0) continue
       const routed = routeApprovalUtterance(t.transcript)
       if (routed.action === 'resolve') {
+        // KIEO-062: owner-only approvals. A rejected voice "yes" is neither
+        // a resolution nor a queued command — keep listening for the owner
+        // (or a card click, which always works).
+        if (routed.status === 'approved' && (await isOwnerGateOn())) {
+          const verdict = await verifyOwner(clip)
+          if (verdict === 'match') {
+            deps.sendResponse({ toolCallId: id, status: routed.status })
+            return
+          }
+          deps.onNotice?.(
+            verdict === 'unavailable'
+              ? 'Owner voice check unavailable — use Approve / Deny.'
+              : 'Voice not recognized as the owner — use Approve / Deny.'
+          )
+          continue
+        }
         deps.sendResponse({ toolCallId: id, status: routed.status })
         return
       }

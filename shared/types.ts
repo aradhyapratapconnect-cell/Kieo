@@ -206,6 +206,31 @@ export interface KieoApi {
     pulled?: { settings: number; permissions: number; facts: number }
     error?: string
   }>
+  /** KIEO-062 owner voice (enrollment + approvals-only gate). */
+  getVoiceProfileStatus: () => Promise<{
+    enrolled: boolean
+    samples: number
+    threshold: number
+    ownerOnly: boolean
+    targetSamples: number
+  }>
+  setVoiceOwnerOnly: (enabled: boolean) => Promise<{ ok: boolean; ownerOnly?: boolean; error?: string }>
+  voiceEnrollAdd: (
+    pcm: ArrayBuffer,
+    sampleRate: number
+  ) => Promise<
+    | { ok: true; samples: number; consistency: number | null }
+    | { ok: false; code: string; message: string }
+  >
+  voiceEnrollCommit: () => Promise<{ ok: boolean; samples?: number; code?: string; message?: string; error?: string }>
+  voiceEnrollReset: () => Promise<{ ok: boolean }>
+  voiceVerify: (
+    pcm: ArrayBuffer,
+    sampleRate: number
+  ) => Promise<
+    | { ok: true; match: boolean; score: number }
+    | { ok: false; code: string; message: string }
+  >
   /** KIEO-060 autonomous mode (experimental, session-scoped). */
   getAutonomy: () => Promise<AutonomySnapshotDto>
   setAutonomyEnabled: (enabled: boolean) => Promise<{ ok: boolean; enabled?: boolean; error?: string }>

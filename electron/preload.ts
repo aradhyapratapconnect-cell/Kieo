@@ -92,6 +92,14 @@ const kieoApi: KieoApi = {
   syncSignIn: (email, password) => ipcRenderer.invoke('sync-signin', { email, password }),
   syncSignOut: () => ipcRenderer.invoke('sync-signout'),
   syncNow: () => ipcRenderer.invoke('sync-now'),
+  // KIEO-062 owner voice (engine may be unprovisioned — calls fail typed).
+  getVoiceProfileStatus: () => ipcRenderer.invoke('voice-profile-status'),
+  setVoiceOwnerOnly: (enabled) => ipcRenderer.invoke('voice-owner-set', { enabled }),
+  voiceEnrollAdd: (pcm, sampleRate) =>
+    ipcRenderer.invoke('voice-enroll-add', { pcm, sampleRate }),
+  voiceEnrollCommit: () => ipcRenderer.invoke('voice-enroll-commit'),
+  voiceEnrollReset: () => ipcRenderer.invoke('voice-enroll-reset'),
+  voiceVerify: (pcm, sampleRate) => ipcRenderer.invoke('voice-verify', { pcm, sampleRate }),
   // KIEO-060 autonomous mode.
   getAutonomy: () => ipcRenderer.invoke('autonomy-get'),
   setAutonomyEnabled: (enabled) => ipcRenderer.invoke('autonomy-set-enabled', { enabled }),

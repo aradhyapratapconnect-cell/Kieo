@@ -17,6 +17,14 @@ function clip(): { pcm: ArrayBuffer; sampleRate: number } {
 
 interface Script {
   transcripts: string[]
+  ownerGate?: boolean
+  speakerMatch?: boolean | null
+}
+
+/** Notices surfaced by the channel (owner-gate rejections, etc.). */
+function scriptNotices(): { notices: string[]; onNotice: (text: string) => void } {
+  const notices: string[] = []
+  return { notices, onNotice: (text: string) => notices.push(text) }
 }
 
 /** Scripted channel: N captures yield clips, then capture parks forever
@@ -26,10 +34,12 @@ function scriptedChannel(script: Script): {
   sent: HitlResponse[]
   submitted: string[]
   pauses: boolean[]
+  notices: string[]
 } {
   const sent: HitlResponse[] = []
   const submitted: string[] = []
   const pauses: boolean[] = []
+  const { notices, onNotice } = scriptNotices()
   let captures = 0
   let ti = 0
   const deps: ApprovalChannelDeps = {
@@ -50,11 +60,18 @@ function scriptedChannel(script: Script): {
     submitCommand: (text) => {
       submitted.push(text)
     },
+    onNotice,
     setWakePaused: (paused) => {
       pauses.push(paused)
-    }
+    },
+    isOwnerGateEnabled: script.ownerGate === undefined ? undefined : async () => script.ownerGate ?? false,
+    verifySpeaker:
+      script.speakerMatch === undefined
+        ? undefined
+        : async () =>
+            script.speakerMatch === null ? null : { match: script.speakerMatch ?? false }
   }
-  return { channel: createApprovalChannel(deps), sent, submitted, pauses }
+  return { channel: createApprovalChannel(deps), sent, submitted, pauses, notices }
 }
 
 describe('KIEO-033 routing', () => {
@@ -185,5 +202,59 @@ describe('KIEO-033 approval channel (AC2: commands queue, never lost)', () => {
     await vi.waitFor(() => expect(sent).toHaveLength(1))
     channel.onAgentState('EXECUTING')
     expect(pauses).toEqual([true, false])
+  })
+})
+
+describe('KIEO-062 owner gate (approvals-only, fail-closed to clicks)', () => {
+  it('owner match resolves; denials stay ungated (safe direction)', async () => {
+    const { channel, sent, submitted } = scriptedChannel({
+      transcripts: ['yes'],
+      ownerGate: true,
+      speakerMatch: true
+    })
+    channel.onApprovalRequested('c1')
+    await vi.waitFor(() => expect(sent).toEqual([{ toolCallId: 'c1', status: 'approved' }]))
+    expect(submitted).toEqual([])
+    channel.onAgentState('EXECUTING')
+
+    const denied = scriptedChannel({
+      transcripts: ['no'],
+      ownerGate: true,
+      speakerMatch: false
+    })
+    denied.channel.onApprovalRequested('c2')
+    await vi.waitFor(() =>
+      expect(denied.sent).toEqual([{ toolCallId: 'c2', status: 'denied' }])
+    )
+  })
+
+  it('stranger voice never resolves and never becomes a command', async () => {
+    const { channel, sent, submitted, notices } = scriptedChannel({
+      transcripts: ['yes'],
+      ownerGate: true,
+      speakerMatch: false
+    })
+    channel.onApprovalRequested('c1')
+    // One attempt consumed, still pending: no resolution, no queued command.
+    await vi.waitFor(() => expect(notices.length).toBeGreaterThan(0))
+    expect(sent).toEqual([])
+    expect(submitted).toEqual([])
+    expect(channel.listening).toBe(true)
+    expect(notices[0]).toMatch(/owner/i)
+    channel.onAgentState('EXECUTING')
+  })
+
+  it('unavailable verifier fails closed with guidance, card stays open', async () => {
+    const { channel, sent, notices } = scriptedChannel({
+      transcripts: ['yes'],
+      ownerGate: true,
+      speakerMatch: null
+    })
+    channel.onApprovalRequested('c1')
+    await vi.waitFor(() => expect(notices.length).toBeGreaterThan(0))
+    expect(sent).toEqual([])
+    expect(channel.listening).toBe(true)
+    expect(notices[0]).toMatch(/unavailable/i)
+    channel.onAgentState('EXECUTING')
   })
 })

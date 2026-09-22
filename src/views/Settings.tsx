@@ -13,6 +13,7 @@ import type {
 } from '../../shared/types'
 import { useAgentStore } from '../store/useAgentStore'
 import WakeWordToggle from '../components/WakeWordToggle'
+import VoiceProfileSetup from '../components/VoiceProfileSetup'
 import CloudSyncSection from './CloudSyncSection'
 
 const LEVEL_OPTIONS: Array<{ value: PermissionLevel; label: string }> = [
@@ -577,6 +578,7 @@ export default function SettingsView(): JSX.Element {
             <div className="rounded border border-white/[0.07] bg-surface/65 px-3 py-3 backdrop-blur-[16px]">
               <WakeWordToggle />
             </div>
+            <VoiceProfileSetup />
             <label className="flex cursor-pointer items-center gap-2 rounded border border-white/[0.07] bg-surface/65 px-3 py-2 backdrop-blur-[16px]">
               <input
                 type="checkbox"

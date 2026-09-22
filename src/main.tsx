@@ -25,7 +25,25 @@ const approvalChannel = createApprovalChannel({
   onNotice: (text) => {
     useAgentStore.getState().setWakeNote(text)
   },
-  setWakePaused
+  setWakePaused,
+  // KIEO-062: owner-only voice approvals, verified against the captured clip.
+  // Unavailable engine/profile fails closed to the card (clicks still work).
+  isOwnerGateEnabled: async () => {
+    try {
+      return (await window.kieo.getVoiceProfileStatus()).ownerOnly
+    } catch {
+      return false
+    }
+  },
+  verifySpeaker: async (audio) => {
+    try {
+      const res = await window.kieo.voiceVerify(audio.pcm, audio.sampleRate)
+      if (!res.ok) return null
+      return { match: res.match }
+    } catch {
+      return null
+    }
+  }
 })
 window.kieo?.onHitlRequest((req) => {
   approvalChannel.onApprovalRequested(req.toolCallId)
