@@ -123,6 +123,13 @@ export interface AutonomySnapshotDto {
   actions: AutonomousActionDto[]
 }
 
+/** KIEO-063: one drop-validation result per input path. */
+export interface PathValidationDto {
+  input: string
+  ok: boolean
+  resolved: string | null
+}
+
 /** Clamp + validate a renderer-supplied filter (shared by main + tests). */
 export function normalizeToolLogsFilter(
   raw?: Partial<ToolLogsFilter> | null
@@ -206,6 +213,9 @@ export interface KieoApi {
     pulled?: { settings: number; permissions: number; facts: number }
     error?: string
   }>
+  /** KIEO-063 drop validation: one result per input path, order-preserved. */
+  validatePaths: (paths: string[]) => Promise<PathValidationDto[]>
+
   /** KIEO-062 owner voice (enrollment + approvals-only gate). */
   getVoiceProfileStatus: () => Promise<{
     enrolled: boolean

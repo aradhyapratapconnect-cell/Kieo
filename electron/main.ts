@@ -4,6 +4,7 @@
 import { app, BrowserWindow, session } from 'electron'
 import { createMainWindow } from './windows'
 import { registerTray } from './tray'
+import { registerAttachmentsIpc } from './ipc/attachments'
 import { registerVoiceBioIpc } from './ipc/voiceBio'
 import { registerHitlIpc } from './ipc/hitl'
 import { registerAgentIpc } from './ipc/agent'
@@ -48,6 +49,7 @@ async function onReady(): Promise<void> {
     console.error('[kieo] failed to initialize key store:', err)
   }
 
+  registerAttachmentsIpc()
   registerVoiceBioIpc()
   registerHitlIpc()
   registerAgentIpc()

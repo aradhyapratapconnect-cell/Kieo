@@ -9,6 +9,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { MIC_DENIED_MESSAGE, STT_USER_MESSAGE } from '../../shared/types'
 import { transcribeAndSubmit } from '../voice/submit'
+import {
+  MAX_ATTACHMENTS,
+  formatCommandWithAttachments,
+  fromValidation,
+  mergeAttachments,
+  validAttachmentPaths,
+  type AttachedFile
+} from './attachments'
 
 type MicMode = 'idle' | 'recording' | 'transcribing'
 
@@ -64,6 +72,10 @@ export default function CommandBar(): JSX.Element {
   const [micMode, setMicMode] = useState<MicMode>('idle')
   const [notice, setNotice] = useState<{ kind: 'info' | 'denied'; text: string } | null>(null)
   const [lastSent, setLastSent] = useState<string | null>(null)
+  // KIEO-063: workspace-validated drop attachments (context for the command).
+  const [attached, setAttached] = useState<AttachedFile[]>([])
+  const [dragDepth, setDragDepth] = useState(0)
+  const [validating, setValidating] = useState(false)
   const captureRef = useRef<ActiveCapture | null>(null)
   const stopTimerRef = useRef<number | null>(null)
 
@@ -80,10 +92,50 @@ export default function CommandBar(): JSX.Element {
   function submit(value: string): void {
     const command = value.trim()
     if (!command) return
-    window.kieo.sendCommand(command)
+    // KIEO-063: validated paths ride as a quoted block; rejected drops never
+    // reach the loop (and tools re-validate before touching disk anyway).
+    const full = formatCommandWithAttachments(command, attached)
+    window.kieo.sendCommand(full)
     setText('')
+    setAttached([])
     setNotice(null)
     setLastSent(command.length > 90 ? `${command.slice(0, 90)}…` : command)
+  }
+
+  /** Electron exposes real filesystem paths on dropped Files (.path). */
+  function droppedPaths(files: FileList | File[]): string[] {
+    const out: string[] = []
+    for (const file of Array.from(files)) {
+      const realPath = (file as unknown as { path?: unknown }).path
+      out.push(typeof realPath === 'string' && realPath ? realPath : file.name)
+    }
+    return out
+  }
+
+  async function handleDrop(e: React.DragEvent): Promise<void> {
+    e.preventDefault()
+    setDragDepth(0)
+    const paths = droppedPaths(e.dataTransfer.files)
+    if (paths.length === 0) return
+    setValidating(true)
+    try {
+      const results = await window.kieo.validatePaths(paths)
+      setAttached((prev) => mergeAttachments(prev, fromValidation(results)))
+      const rejected = results.filter((r) => !r.ok).length
+      if (rejected > 0) {
+        setNotice({
+          kind: 'denied',
+          text:
+            rejected === results.length
+              ? 'Dropped file is outside the permitted workspace — not attached.'
+              : `${rejected} dropped file(s) outside the workspace were skipped.`
+        })
+      }
+    } catch {
+      setNotice({ kind: 'info', text: STT_USER_MESSAGE.failed })
+    } finally {
+      setValidating(false)
+    }
   }
 
   function stopTracks(): void {
@@ -193,11 +245,40 @@ export default function CommandBar(): JSX.Element {
 
   const busy = micMode !== 'idle'
 
+  const dragging = dragDepth > 0
+  const validCount = validAttachmentPaths(attached).length
+
   return (
     <div className="w-full max-w-xl">
-      <div className="flex w-full items-center gap-2 rounded border border-white/[0.12] bg-bg-base px-3 py-2 focus-within:shadow-[0_0_0_1px_#06B6D4]">
-        <span className="text-text-muted" title="Attach files (coming soon)">
-          ＋
+      <div
+        onDragEnter={(e) => {
+          e.preventDefault()
+          setDragDepth((d) => d + 1)
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onDragLeave={() => setDragDepth((d) => Math.max(0, d - 1))}
+        onDrop={(e) => void handleDrop(e)}
+        className={`relative flex w-full items-center gap-2 rounded border bg-bg-base px-3 py-2 focus-within:shadow-[0_0_0_1px_#06B6D4] ${
+          dragging ? 'border-primary shadow-[0_0_0_1px_#06B6D4]' : 'border-white/[0.12]'
+        }`}
+      >
+        {/* KIEO-063 drag-over affordance: unmissable drop target state. */}
+        {dragging && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded bg-primary/10 backdrop-blur-[2px]">
+            <p className="font-mono text-[12px] uppercase tracking-[0.06em] text-primary-bright">
+              Drop files to attach
+            </p>
+          </div>
+        )}
+        <span
+          className="text-text-muted"
+          title={
+            validCount > 0
+              ? `${validCount}/${MAX_ATTACHMENTS} file(s) attached`
+              : 'Attach files — drag & drop onto the bar'
+          }
+        >
+          {validCount > 0 ? `＋${validCount}` : '＋'}
         </span>
         <input
           className="flex-1 bg-transparent text-[15px] text-text-primary placeholder:text-text-muted focus:outline-none"
@@ -239,6 +320,41 @@ export default function CommandBar(): JSX.Element {
           Send
         </button>
       </div>
+      {/* KIEO-063 attachment chips (validated ✓ / rejected ✕). */}
+      {attached.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Attached files">
+          {attached.map((file) => (
+            <li
+              key={file.resolved ?? file.display}
+              title={file.ok ? file.resolved ?? file.display : 'Outside the workspace — excluded'}
+              className={`flex max-w-full items-center gap-1.5 rounded border px-2 py-0.5 font-mono text-[11px] ${
+                file.ok
+                  ? 'border-primary/40 text-text-secondary'
+                  : 'border-danger/60 text-danger'
+              }`}
+            >
+              <span className="truncate">{file.display.split(/[/\\]/).pop() ?? file.display}</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setAttached((prev) =>
+                    prev.filter((f) => (f.resolved ?? f.display) !== (file.resolved ?? file.display))
+                  )
+                }
+                aria-label={`Remove ${file.display}`}
+                className="text-text-muted hover:text-text-primary"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {validating && (
+        <p role="status" className="mt-2 font-mono text-[11px] uppercase tracking-[0.06em] text-text-secondary">
+          Checking dropped files against the workspace…
+        </p>
+      )}
       {notice !== null && (
         <p
           role={notice.kind === 'denied' ? 'alert' : 'status'}
