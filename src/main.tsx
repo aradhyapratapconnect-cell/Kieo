@@ -49,6 +49,7 @@ window.kieo?.onHitlRequest((req) => {
   approvalChannel.onApprovalRequested(req.toolCallId)
 })
 const forwardAgentState = (state: AgentState): void => {
+  console.log('[kieo][debug][renderer] agent-state received:', state)
   useAgentStore.getState().setAgentState(state)
   approvalChannel.onAgentState(state)
 }
@@ -56,6 +57,7 @@ window.kieo?.onAgentState(forwardAgentState)
 
 // KIEO-050: finished-turn text for the home inline response (no view change).
 window.kieo?.onAgentMessage((msg) => {
+  console.log('[kieo][debug][renderer] agent-message received:', msg.isError ? 'ERROR' : 'OK', '— text:', msg.text.slice(0, 80))
   useAgentStore.getState().setLastMessage(msg)
 })
 

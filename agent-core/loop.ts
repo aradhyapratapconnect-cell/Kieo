@@ -173,6 +173,7 @@ async function runInner(
   deps: RunAgentLoopDeps
 ): Promise<RunAgentLoopResult> {
   const report = (state: AgentState): void => {
+    console.log('[kieo][debug] loop state transition:', state)
     deps.onStateChange?.(state)
   }
   const maxSteps = deps.maxSteps ?? DEFAULT_MAX_STEPS
@@ -232,6 +233,7 @@ async function runInner(
       messages.push(...stepMessages)
 
       if (finishReason !== 'tool-calls' || toolCalls.length === 0) {
+        console.log('[kieo][debug] loop finished — finishReason:', finishReason, 'text length:', text.length)
         return { text, messages, executedTools }
       }
 

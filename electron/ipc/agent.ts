@@ -64,6 +64,7 @@ async function handleAgentCommand(
   conversationId?: string
 ): Promise<string | null> {
   if (text.trim().length === 0) return null
+  console.log('[kieo][debug] handleAgentCommand() — text:', text.slice(0, 80))
   const db = getDatabase()
   const keyStore = getKeyStore()
 
@@ -85,23 +86,29 @@ async function handleAgentCommand(
   // restart; the current turn's own statement is learned AFTER (future only).
   const memoryContext = buildMemoryContext(db)
 
+  // Show "Working…" immediately so the user sees feedback even when the
+  // provider check below fails (missing key = most common first-run issue).
+  broadcastAgentState('THINKING')
+
   let model
   try {
     ;({ model } = resolveModel({ db, keyStore }))
+    console.log('[kieo][debug] resolveModel() succeeded — LLM client ready')
   } catch (err) {
     // No provider/key yet (Settings UI lands in KIEO-053) or provider error:
     // persist the failure as the assistant message so the turn is visible in
     // history after restart instead of an orphaned empty row.
+    broadcastAgentState('IDLE')
     const message = err instanceof Error ? err.message : String(err)
+    console.error(
+      '[kieo][debug] resolveModel() FAILED:',
+      err instanceof Error ? err.message : err
+    )
     try {
       finalizeAssistantMessage(db, conv.id, assistantMsg.id, message, null)
     } catch {
       // Persistence must never mask the original provider error.
     }
-    console.error(
-      '[kieo] command failed before the LLM call:',
-      err instanceof Error ? err.message : err
-    )
     // KIEO-050: surface failures inline on home (Error Handling Guide).
     broadcastAgentMessage({ conversationId: conv.id, text: message, isError: true })
     return conv.id
@@ -152,6 +159,7 @@ async function handleAgentCommand(
   }
 
   try {
+    console.log('[kieo][debug] entering runAgentLoop() — text:', text.slice(0, 80))
     const result = await runAgentLoop(
       { userText: text, history, system: memoryContext || undefined },
       {
@@ -161,6 +169,7 @@ async function handleAgentCommand(
         onStateChange: broadcastAgentState
       }
     )
+    console.log('[kieo][debug] runAgentLoop() completed — response:', result.text.slice(0, 80))
     const toolCalls = result.executedTools.map((t) => ({
       toolCallId: t.toolCallId,
       toolName: t.toolName,
@@ -216,6 +225,7 @@ export function registerAgentIpc(): void {
   ipcMain.on(
     'agent-command',
     (_event, payload: { text?: unknown; conversationId?: unknown }) => {
+      console.log('[kieo][debug] IPC agent-command received — payload:', JSON.stringify(payload).slice(0, 120))
       const text = typeof payload?.text === 'string' ? payload.text : ''
       const conversationId =
         typeof payload?.conversationId === 'string' ? payload.conversationId : undefined

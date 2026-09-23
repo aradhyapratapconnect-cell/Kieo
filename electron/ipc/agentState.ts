@@ -20,6 +20,7 @@ export function getAgentWindow(): BrowserWindow | null {
 /** Forward a loop state transition to the renderer store. Never throws. */
 export function broadcastAgentState(state: AgentState): void {
   try {
+    console.log('[kieo][debug] broadcasting agent-state:', state)
     getAgentWindow()?.webContents.send('agent-state', state)
   } catch (err) {
     console.error('[kieo] failed to broadcast agent state:', err)
@@ -58,6 +59,7 @@ export function broadcastToolLogsUpdated(): void {
  */
 export function broadcastAgentMessage(msg: AgentMessageDto): void {
   try {
+    console.log('[kieo][debug] broadcasting agent-message:', msg.isError ? 'ERROR' : 'OK', '— text:', msg.text.slice(0, 80))
     getAgentWindow()?.webContents.send('agent-message', msg)
   } catch (err) {
     console.error('[kieo] failed to broadcast agent message:', err)

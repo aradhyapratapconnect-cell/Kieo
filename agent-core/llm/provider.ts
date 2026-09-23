@@ -227,8 +227,11 @@ export function resolveModel(options: ResolveModelOptions = {}): ResolvedModel {
   const modelId =
     options.modelId ?? modelOverrides[configured] ?? meta.defaultModel
 
+  console.log('[kieo][debug] resolveModel \u2014 provider:', meta.id, 'model:', modelId)
+
   const apiKey = keyStore.getKey(meta.keyStoreName)
   if (apiKey === null || apiKey.length === 0) {
+    console.error('[kieo][debug] resolveModel \u2014 MISSING KEY for', meta.label, '(key store name:', meta.keyStoreName + ')')
     throw new LlmProviderError(
       'missing-key',
       `No API key stored for ${meta.label} (key store name "${meta.keyStoreName}"). Add it in Settings → AI Providers — Kieo never reads keys from .env or logs.`
